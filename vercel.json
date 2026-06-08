@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm install --prefix jersey-auction-frontend --legacy-peer-deps",
+  "buildCommand": "VITE_DEMO_MODE=true npm run build --prefix jersey-auction-frontend",
+  "outputDirectory": "jersey-auction-frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

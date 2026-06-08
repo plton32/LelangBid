@@ -6,19 +6,46 @@ Panduan ini mengikuti Step 14 RDP untuk deploy frontend Vite dan backend Express
 
 - Node.js 22.5 atau lebih baru untuk backend karena proyek memakai `node:sqlite`.
 - Backend membutuhkan persistent disk jika memakai SQLite dan upload file lokal.
-- Frontend membutuhkan URL API production melalui `VITE_API_URL`.
+- Frontend production membutuhkan URL API production melalui `VITE_API_URL`, kecuali mode demo Vercel memakai `VITE_DEMO_MODE=true`.
 
 ## Environment Frontend
 
 Buat environment variable berikut di Vercel atau file `.env` lokal:
 
 ```env
+VITE_DEMO_MODE=false
 VITE_API_URL=https://your-backend-domain.com/api
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
 `VITE_SUPABASE_*` disiapkan untuk jalur migrasi Supabase sesuai RDP, tetapi kode saat ini memakai backend Express.
+
+## Mode Demo Vercel Tanpa Backend
+
+Untuk kebutuhan demo, frontend bisa dideploy langsung ke Vercel tanpa backend Express/SQLite.
+
+Root `vercel.json` dan `jersey-auction-frontend/vercel.json` sudah mengaktifkan mode demo melalui build command:
+
+```env
+VITE_DEMO_MODE=true
+```
+
+Dalam mode ini, request API dijawab oleh dummy API di browser dan data demo disimpan di `localStorage`. Jadi fitur login, auction, bid, payment proof, shipment, COA, admin, seller, dan member/buyer tetap terlihat berjalan untuk presentasi.
+
+Akun demo:
+
+- Admin: `admin@lelangbid.com` / `admin123`
+- Seller: `seller@lelangbid.com` / `seller123`
+- Member: `member@lelangbid.com` / `member123`
+- Buyer: `buyer@lelangbid.com` / `member123`
+
+Catatan penting:
+
+- Mode demo tidak memakai database production.
+- Upload gambar/bukti bayar hanya disimulasikan sebagai preview lokal.
+- Data bisa berbeda per browser karena tersimpan di `localStorage`.
+- Untuk production sungguhan, set `VITE_DEMO_MODE=false`, isi `VITE_API_URL`, lalu deploy backend.
 
 ## Environment Backend
 
@@ -50,11 +77,37 @@ Implementasi saat ini masih memakai `UPLOAD_DIR` lokal dari backend. Untuk produ
 
 ## Deploy Frontend ke Vercel
 
+### Untuk Demo Frontend-Only
+
+Pilihan paling aman:
+
+1. Import repository root atau folder `jersey-auction-frontend` ke Vercel.
+2. Pastikan `VITE_DEMO_MODE=true` aktif. Ini sudah ada di `vercel.json`.
+3. Build command untuk root repo: `VITE_DEMO_MODE=true npm run build --prefix jersey-auction-frontend`.
+4. Build command untuk folder frontend: `VITE_DEMO_MODE=true npm run build`.
+5. Output directory root repo: `jersey-auction-frontend/dist`.
+6. Output directory folder frontend: `dist`.
+7. Tidak perlu set `VITE_API_URL` untuk demo.
+
+### Untuk Production Dengan Backend
+
+Pilihan paling aman:
+
 1. Import folder `jersey-auction-frontend` ke Vercel.
-2. Set `VITE_API_URL` ke URL backend production dengan suffix `/api`.
-3. Build command: `npm run build`.
-4. Output directory: `dist`.
-5. `vercel.json` sudah menyiapkan fallback SPA ke `index.html`.
+2. Ubah build command demo di `vercel.json` menjadi `npm run build`.
+3. Set `VITE_DEMO_MODE=false`.
+4. Set `VITE_API_URL` ke URL backend production dengan suffix `/api`.
+5. Build command: `npm run build`.
+6. Output directory: `dist`.
+7. `jersey-auction-frontend/vercel.json` sudah menyiapkan fallback SPA ke `index.html`.
+
+Jika kamu import repository root ke Vercel, gunakan konfigurasi root `vercel.json` yang sudah disediakan:
+
+- Install command: `npm install --prefix jersey-auction-frontend --legacy-peer-deps`
+- Build command demo: `VITE_DEMO_MODE=true npm run build --prefix jersey-auction-frontend`
+- Output directory: `jersey-auction-frontend/dist`
+
+Jangan gunakan root `npm run build` di Vercel untuk frontend, karena command itu juga membangun backend Express/SQLite.
 
 ## Deploy Backend ke Render
 

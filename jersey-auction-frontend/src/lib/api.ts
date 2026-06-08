@@ -1,9 +1,14 @@
 import axios from 'axios';
+import { demoApiAdapter } from './demoApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const API_BASE_URL = IS_DEMO_MODE
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  adapter: IS_DEMO_MODE ? demoApiAdapter : undefined,
   headers: {
     'Content-Type': 'application/json',
   },

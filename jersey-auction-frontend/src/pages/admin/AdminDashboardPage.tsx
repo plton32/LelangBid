@@ -222,6 +222,36 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const handleDownloadReport = () => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      const rows = payments.map(payment => ({
+        transaction_id: payment.id,
+        jersey_title: payment.jersey_title,
+        winner_name: payment.user_name,
+        final_price: payment.amount,
+        payment_status: payment.status,
+        paid_at: payment.paid_at || payment.created_at
+      }));
+
+      const headers = ['Transaction ID', 'Jersey Title', 'Winner Name', 'Final Price', 'Payment Status', 'Paid At'];
+      const csvRows = rows.map(row => [
+        row.transaction_id,
+        `"${String(row.jersey_title || '').replace(/"/g, '""')}"`,
+        row.winner_name,
+        row.final_price,
+        row.payment_status,
+        row.paid_at
+      ]);
+      const csv = [headers.join(','), ...csvRows.map(row => row.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'lelangbid_demo_sales_report.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const token = localStorage.getItem('lelangbid_token');
     window.open(`${API_URL}/admin/reports/csv?token=${token}`, '_blank');
