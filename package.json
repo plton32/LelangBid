@@ -1,0 +1,17 @@
+{
+  "name": "lelang-bid-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix jersey-auction-backend && npm install --prefix jersey-auction-frontend --legacy-peer-deps",
+    "dev": "npx concurrently \"npm run dev --prefix jersey-auction-backend\" \"npm run dev --prefix jersey-auction-frontend\"",
+    "dev:backend": "npm run dev --prefix jersey-auction-backend",
+    "dev:frontend": "npm run dev --prefix jersey-auction-frontend",
+    "build": "npm run build --prefix jersey-auction-backend && npm run build --prefix jersey-auction-frontend",
+    "start:backend": "npm run start --prefix jersey-auction-backend",
+    "preview:frontend": "npm run preview --prefix jersey-auction-frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

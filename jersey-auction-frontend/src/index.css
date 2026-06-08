@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-navy-deep text-slate-200 font-sans antialiased;
+  }
+}
+
+/* Custom micro-animations & transitions */
+.transition-premium {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.bg-gradient-premium {
+  background: linear-gradient(135deg, #0B132B 0%, #1C2541 100%);
+}
+
+.gold-gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-gold-light via-brand-gold to-brand-gold-dark;
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #F4D35E 0%, #D4AF37 50%, #A67C1E 100%);
+}
+
+/* Keyframes for soft pulse or glow updates */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s infinite;
+}
+
+@keyframes bid-highlight {
+  0% {
+    @apply bg-brand-accent/20;
+  }
+  100% {
+    @apply bg-transparent;
+  }
+}
+
+.animate-bid-highlight {
+  animation: bid-highlight 1.5s ease-out;
+}

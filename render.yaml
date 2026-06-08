@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: lelangbid-api
+    runtime: docker
+    rootDir: jersey-auction-backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: DATABASE_PATH
+        value: /var/data/database.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+    disk:
+      name: lelangbid-data
+      mountPath: /var/data
+      sizeGB: 1

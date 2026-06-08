@@ -1,0 +1,4 @@
+admin@lelangbid.com / admin123
+seller@lelangbid.com / seller123
+member@lelangbid.com / member123
+buyer@lelangbid.com / member123
