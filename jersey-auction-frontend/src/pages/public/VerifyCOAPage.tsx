@@ -63,18 +63,18 @@ export const VerifyCOAPage: React.FC = () => {
           Enter the unique certificate barcode number printed on your LelangBID hologram seal to verify item matches and certificate details.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-6 max-w-md mx-auto flex items-end space-x-3">
-          <div className="flex-1">
+        <form onSubmit={handleSubmit} className="mt-6 max-w-xl mx-auto grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-stretch">
+          <div className="[&>div]:mb-0">
             <Input
               type="text"
               placeholder="e.g. COA-CR7-MU0708-001"
               value={coaInput}
               onChange={(e) => setCoaInput(e.target.value)}
               disabled={loading}
-              className="mb-0 py-3"
+              className="h-[52px] py-0"
             />
           </div>
-          <Button type="submit" variant="gold" loading={loading} className="py-3 uppercase tracking-widest text-xs">
+          <Button type="submit" variant="gold" loading={loading} className="h-[52px] px-6 py-0 uppercase tracking-widest text-xs whitespace-nowrap">
             Verify COA
           </Button>
         </form>
@@ -160,7 +160,7 @@ export const VerifyCOAPage: React.FC = () => {
           <div className="pt-4 border-t border-slate-800/80">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Authenticator Verification Notes</h4>
             <p className="text-xs text-slate-450 leading-relaxed">
-              This memorabilia has been carefully inspected and examined by the verification officers of LelangBID. By matching weave structure, brand badges, stitching techniques, player number materials, and event specifics, this item is certified authentic and original.
+              This LelangBid item has been carefully inspected and examined by the verification officers of LelangBID. By matching weave structure, brand badges, stitching techniques, player number materials, and event specifics, this item is certified authentic and original.
             </p>
           </div>
         </Card>

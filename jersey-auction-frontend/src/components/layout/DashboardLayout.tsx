@@ -61,7 +61,7 @@ export const DashboardLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-brand-navy-deep text-slate-200 flex flex-col md:flex-row">
       {/* Sidebar Panel */}
-      <aside className="w-full md:w-64 bg-brand-navy border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
+      <aside className="w-full md:w-64 bg-black border-r border-brand-accent-red/25 p-5 flex flex-col justify-between shrink-0">
         <div>
           {/* Header Brand */}
           <div className="mb-8 flex items-center justify-between">
@@ -78,7 +78,7 @@ export const DashboardLayout: React.FC = () => {
           </div>
 
           {/* User Meta Card */}
-          <div className="mb-6 p-4 rounded-xl bg-brand-navy-light/40 border border-slate-800">
+          <div className="mb-6 p-4 rounded-xl bg-brand-navy-light/60 border border-brand-accent-red/20">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Logged In As</span>
             <span className="font-bold text-slate-100 block truncate text-sm mt-0.5">{user?.fullName}</span>
             <span className="inline-block mt-1.5 px-2 py-0.5 text-[9px] font-black uppercase rounded gold-gradient-bg text-brand-navy">
@@ -97,7 +97,7 @@ export const DashboardLayout: React.FC = () => {
                   className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
                     isActive
                       ? 'gold-gradient-bg text-brand-navy shadow-premium-glow'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-brand-navy-light/30'
+                      : 'text-slate-400 hover:text-white hover:bg-brand-accent-red/10'
                   }`}
                 >
                   {link.icon}
@@ -109,10 +109,10 @@ export const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Sidebar Footer Log out */}
-        <div className="mt-8 pt-4 border-t border-slate-800/60">
+        <div className="mt-8 pt-4 border-t border-brand-accent-red/20">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-accent-red hover:bg-slate-900/40 transition-all focus:outline-none"
+            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-accent-red hover:bg-brand-accent-red/10 transition-all focus:outline-none"
           >
             <LogOut size={16} />
             <span>Logout</span>

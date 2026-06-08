@@ -29,7 +29,7 @@ export const BidHistory: React.FC<BidHistoryProps> = ({ bids, highlightedBidId }
       <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-800 rounded-2xl text-center bg-brand-navy-light/10">
         <Gavel className="text-slate-600 mb-3" size={32} />
         <p className="text-sm font-semibold text-slate-400">No bids placed yet</p>
-        <p className="text-xs text-slate-500 mt-1">Be the first to place a bid on this memorabilia!</p>
+        <p className="text-xs text-slate-500 mt-1">Be the first to place a bid on this LelangBid item!</p>
       </div>
     );
   }

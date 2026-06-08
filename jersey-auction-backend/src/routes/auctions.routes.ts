@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
 
   try {
     let query = `
-      SELECT a.*, j.title as jersey_title, j.condition, j.size, j.is_signed, j.has_coa,
+      SELECT a.*, j.title as jersey_title, j.condition, j.size, j.is_signed, j.has_coa, j.seller_id,
              c.name as category_name, c.slug as category_slug,
              (SELECT image_url FROM jersey_images WHERE jersey_id = j.id ORDER BY sort_order ASC LIMIT 1) as main_image
       FROM auctions a
@@ -95,7 +95,7 @@ router.get('/:id', (req, res) => {
       ORDER BY b.bid_amount DESC, b.created_at DESC
     `).all(id);
 
-    // Get active certificate if this memorabilia has COA
+    // Get active certificate if this LelangBid item has COA
     const coa = db.prepare(`
       SELECT *
       FROM certificates

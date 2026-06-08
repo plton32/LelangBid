@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -11,8 +12,22 @@ import {
   Check, X, Plus, Eye, Download
 } from 'lucide-react';
 
+type AdminTab = 'dashboard' | 'users' | 'verify-jerseys' | 'auctions' | 'payments' | 'shipments' | 'coa';
+
+const getAdminTabFromPath = (pathname: string): AdminTab => {
+  if (pathname.startsWith('/admin/users')) return 'users';
+  if (pathname.startsWith('/admin/jerseys')) return 'verify-jerseys';
+  if (pathname.startsWith('/admin/auctions')) return 'auctions';
+  if (pathname.startsWith('/admin/payments')) return 'payments';
+  if (pathname.startsWith('/admin/shipments')) return 'shipments';
+  if (pathname.startsWith('/admin/certificates')) return 'coa';
+  return 'dashboard';
+};
+
 export const AdminDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'verify-jerseys' | 'auctions' | 'payments' | 'shipments' | 'coa'>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => getAdminTabFromPath(location.pathname));
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [jerseys, setJerseys] = useState<any[]>([]);
@@ -85,6 +100,14 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     fetchAdminData();
   }, [activeTab]);
+
+  useEffect(() => {
+    const nextTab = getAdminTabFromPath(location.pathname);
+    if (nextTab !== activeTab) {
+      setLoading(true);
+      setActiveTab(nextTab);
+    }
+  }, [location.pathname]);
 
   // Actions handlers
   const handleUserRoleChange = async (userId: string, role: string) => {
@@ -270,19 +293,20 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Main Tabs Navigation Bar */}
       <div className="flex bg-brand-navy border border-slate-800 p-1 rounded-2xl overflow-x-auto max-w-full space-x-1">
         {[
-          { id: 'dashboard', label: 'Stats Overview', icon: <LayoutDashboard size={14} /> },
-          { id: 'users', label: 'Users', icon: <Users size={14} /> },
-          { id: 'verify-jerseys', label: 'Verifikasi Jersey', icon: <Tag size={14} /> },
-          { id: 'auctions', label: 'Auctions', icon: <Gavel size={14} /> },
-          { id: 'payments', label: 'Verify Payments', icon: <CreditCard size={14} /> },
-          { id: 'shipments', label: 'Shipments', icon: <Truck size={14} /> },
-          { id: 'coa', label: 'COA Certs', icon: <Award size={14} /> },
+          { id: 'dashboard', label: 'Stats Overview', path: '/admin', icon: <LayoutDashboard size={14} /> },
+          { id: 'users', label: 'Users', path: '/admin/users', icon: <Users size={14} /> },
+          { id: 'verify-jerseys', label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={14} /> },
+          { id: 'auctions', label: 'Auctions', path: '/admin/auctions', icon: <Gavel size={14} /> },
+          { id: 'payments', label: 'Verify Payments', path: '/admin/payments', icon: <CreditCard size={14} /> },
+          { id: 'shipments', label: 'Shipments', path: '/admin/shipments', icon: <Truck size={14} /> },
+          { id: 'coa', label: 'COA Certs', path: '/admin/certificates', icon: <Award size={14} /> },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => {
-              setActiveTab(tab.id as any);
+              setActiveTab(tab.id as AdminTab);
               setLoading(true);
+              navigate(tab.path);
             }}
             className={`flex items-center space-x-2 shrink-0 py-2.5 px-4 rounded-xl font-bold uppercase transition-all duration-200 ${
               activeTab === tab.id 
@@ -424,7 +448,7 @@ export const AdminDashboardPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                  <th className="pb-3 pr-4">Jersey Memorabilia</th>
+                  <th className="pb-3 pr-4">Jersey LelangBid</th>
                   <th className="pb-3 px-4">Pricing</th>
                   <th className="pb-3 px-4">Timing Details</th>
                   <th className="pb-3 px-4">Status</th>

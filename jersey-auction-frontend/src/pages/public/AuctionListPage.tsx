@@ -95,7 +95,7 @@ export const AuctionListPage: React.FC = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-wider text-slate-100 flex items-center">
             <Gavel className="mr-2.5 text-brand-gold" size={24} />
-            Jersey Memorabilia Catalogs
+            Jersey LelangBid Catalogs
           </h1>
           <p className="text-xs text-slate-500 mt-1">Explore our exclusive collections of authenticated vintage, signed, and match worn football shirts.</p>
         </div>

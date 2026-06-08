@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-brand-navy-deep text-slate-200 font-sans antialiased;
+    @apply bg-brand-navy-deep text-white font-sans antialiased;
   }
 }
 
@@ -16,7 +16,7 @@
 }
 
 .bg-gradient-premium {
-  background: linear-gradient(135deg, #0B132B 0%, #1C2541 100%);
+  background: linear-gradient(135deg, #050505 0%, #151518 100%);
 }
 
 .gold-gradient-text {
@@ -24,16 +24,41 @@
 }
 
 .gold-gradient-bg {
-  background: linear-gradient(135deg, #F4D35E 0%, #D4AF37 50%, #A67C1E 100%);
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #DA291C 0%, #C8102E 60%, #9B111E 100%);
+  border-color: rgba(218, 41, 28, 0.65);
+}
+
+.gold-gradient-bg:hover {
+  background: linear-gradient(135deg, #9B111E 0%, #7A0C17 100%);
+}
+
+.border-slate-700\/50,
+.border-slate-700\/60,
+.border-slate-700\/80,
+.border-slate-800,
+.border-slate-800\/50,
+.border-slate-800\/60,
+.border-slate-800\/80,
+.border-slate-850,
+.border-slate-850\/60,
+.border-slate-900 {
+  border-color: rgba(218, 41, 28, 0.22) !important;
+}
+
+.divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+.divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]),
+.divide-slate-850\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(218, 41, 28, 0.18) !important;
 }
 
 /* Keyframes for soft pulse or glow updates */
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+    box-shadow: 0 0 15px rgba(218, 41, 28, 0.22);
   }
   50% {
-    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+    box-shadow: 0 0 30px rgba(218, 41, 28, 0.42);
   }
 }
 
@@ -43,7 +68,7 @@
 
 @keyframes bid-highlight {
   0% {
-    @apply bg-brand-accent/20;
+    @apply bg-brand-accent-red/20;
   }
   100% {
     @apply bg-transparent;

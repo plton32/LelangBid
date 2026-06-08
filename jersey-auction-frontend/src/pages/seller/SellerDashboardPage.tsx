@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Tag, PlusCircle, LayoutDashboard, ShoppingBag, Sparkles, Plus, Upload, Gavel } from 'lucide-react';
+
+type SellerTab = 'dashboard' | 'my-jerseys' | 'add-jersey' | 'my-auctions' | 'sales';
+
+const getSellerTabFromPath = (pathname: string): SellerTab => {
+  if (pathname.startsWith('/seller/add-jersey')) return 'add-jersey';
+  if (pathname.startsWith('/seller/jerseys')) return 'my-jerseys';
+  if (pathname.startsWith('/seller/auctions')) return 'my-auctions';
+  if (pathname.startsWith('/seller/sales')) return 'sales';
+  return 'dashboard';
+};
 
 interface Category {
   id: string;
@@ -26,8 +38,13 @@ interface JerseyData {
 }
 
 export const SellerDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'my-jerseys' | 'add-jersey'>('dashboard');
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<SellerTab>(() => getSellerTabFromPath(location.pathname));
   const [jerseys, setJerseys] = useState<JerseyData[]>([]);
+  const [auctions, setAuctions] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,6 +73,12 @@ export const SellerDashboardPage: React.FC = () => {
 
       const catRes = await api.get('/jerseys/categories');
       setCategories(catRes.data);
+
+      const auctionsRes = await api.get('/auctions');
+      setAuctions(auctionsRes.data.filter((auction: any) => auction.seller_id === user?.id));
+
+      const shipmentsRes = await api.get('/shipments');
+      setSales(shipmentsRes.data);
     } catch (err) {
       console.error('Error fetching seller details:', err);
     } finally {
@@ -65,7 +88,19 @@ export const SellerDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchSellerData();
-  }, []);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const nextTab = getSellerTabFromPath(location.pathname);
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [location.pathname]);
+
+  const goToTab = (tab: SellerTab, path: string) => {
+    setActiveTab(tab);
+    navigate(path);
+  };
 
   const handleAddJerseySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +181,10 @@ export const SellerDashboardPage: React.FC = () => {
     return url ? (url.startsWith('http') ? url : `http://localhost:5000${url}`) : defaultPlaceholder;
   };
 
+  const formatPrice = (price: number) => {
+    return `Rp ${(price || 0).toLocaleString('id-ID')}`;
+  };
+
   return (
     <div className="space-y-8 text-xs font-sans">
       {/* Header Seller Center Banner */}
@@ -156,37 +195,30 @@ export const SellerDashboardPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black uppercase tracking-wider text-slate-100">Seller Center</h1>
-            <p className="text-[11px] text-slate-400 mt-0.5">Manage your memorabilia shop, upload new listings, and trace approvals.</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Manage your LelangBid shop, upload new listings, and trace approvals.</p>
           </div>
         </div>
 
         {/* Actions shortcut tabs */}
         <div className="flex space-x-2 bg-brand-navy p-1 rounded-xl border border-slate-800 shrink-0">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`py-2 px-4 rounded-lg font-bold uppercase transition-all ${
-              activeTab === 'dashboard' ? 'gold-gradient-bg text-brand-navy shadow-sm' : 'text-slate-450 hover:text-slate-200'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('my-jerseys')}
-            className={`py-2 px-4 rounded-lg font-bold uppercase transition-all ${
-              activeTab === 'my-jerseys' ? 'gold-gradient-bg text-brand-navy shadow-sm' : 'text-slate-455 hover:text-slate-200'
-            }`}
-          >
-            My Jerseys ({jerseys.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('add-jersey')}
-            className={`py-2 px-4 rounded-lg font-bold uppercase transition-all flex items-center space-x-1 ${
-              activeTab === 'add-jersey' ? 'gold-gradient-bg text-brand-navy shadow-sm' : 'text-slate-455 hover:text-slate-200'
-            }`}
-          >
-            <Plus size={12} />
-            <span>Add Jersey</span>
-          </button>
+          {[
+            { id: 'dashboard', label: 'Dashboard', path: '/seller' },
+            { id: 'my-jerseys', label: `My Jerseys (${jerseys.length})`, path: '/seller/jerseys' },
+            { id: 'my-auctions', label: `Auctions (${auctions.length})`, path: '/seller/auctions' },
+            { id: 'sales', label: `Sales (${sales.length})`, path: '/seller/sales' },
+            { id: 'add-jersey', label: 'Add Jersey', path: '/seller/add-jersey', icon: <Plus size={12} /> },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => goToTab(tab.id as SellerTab, tab.path)}
+              className={`py-2 px-4 rounded-lg font-bold uppercase transition-all flex items-center space-x-1 ${
+                activeTab === tab.id ? 'gold-gradient-bg text-brand-navy shadow-sm' : 'text-slate-455 hover:text-slate-200'
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -210,6 +242,13 @@ export const SellerDashboardPage: React.FC = () => {
             <h3 className="font-bold text-slate-300 uppercase tracking-wider">Verified/Approved</h3>
             <span className="text-3xl font-black text-slate-100 font-mono mt-1 block">
               {jerseys.filter(j => j.status === 'verified').length}
+            </span>
+          </Card>
+          <Card className="p-6 bg-brand-navy-light/10 text-center">
+            <Gavel className="text-brand-accent-red mx-auto mb-2" size={28} />
+            <h3 className="font-bold text-slate-300 uppercase tracking-wider">Active Auctions</h3>
+            <span className="text-3xl font-black text-slate-100 font-mono mt-1 block">
+              {auctions.filter(a => a.status === 'live').length}
             </span>
           </Card>
         </div>
@@ -259,6 +298,109 @@ export const SellerDashboardPage: React.FC = () => {
                       <td className="py-4 px-4">
                         <Badge variant={getStatusVariant(jersey.status)}>
                           {jersey.status.replace(/_/g, ' ')}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* RENDER MY AUCTIONS PAGE */}
+      {activeTab === 'my-auctions' && (
+        <Card className="p-6 bg-brand-navy-light/10 border-slate-800">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 mb-6 flex items-center">
+            <Gavel size={16} className="mr-2 text-brand-gold" />
+            My Auction Schedule
+          </h2>
+
+          {auctions.length === 0 ? (
+            <div className="text-center py-10 text-slate-500">
+              No auctions created from your verified jerseys yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                    <th className="pb-3 pr-4">Auction Item</th>
+                    <th className="pb-3 px-4">Price</th>
+                    <th className="pb-3 px-4">Schedule</th>
+                    <th className="pb-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {auctions.map(auction => (
+                    <tr key={auction.id} className="text-slate-300">
+                      <td className="py-4 pr-4 flex items-center space-x-3">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-900 border border-slate-850 shrink-0">
+                          <img
+                            src={getFullImgUrl(auction.main_image)}
+                            alt={auction.jersey_title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <span className="font-bold text-slate-200 line-clamp-1">{auction.jersey_title}</span>
+                      </td>
+                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">
+                        {formatPrice(auction.current_price || auction.start_price)}
+                      </td>
+                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold">
+                        <span className="block">Start: {new Date(auction.start_time).toLocaleString('id-ID')}</span>
+                        <span className="block">End: {new Date(auction.end_time).toLocaleString('id-ID')}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <Badge variant={auction.status}>{auction.status}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* RENDER SALES PAGE */}
+      {activeTab === 'sales' && (
+        <Card className="p-6 bg-brand-navy-light/10 border-slate-800">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 mb-6 flex items-center">
+            <ShoppingBag size={16} className="mr-2 text-brand-gold" />
+            Sales & Shipment Results
+          </h2>
+
+          {sales.length === 0 ? (
+            <div className="text-center py-10 text-slate-500">
+              No completed or paid sales found yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                    <th className="pb-3 pr-4">Winning Item</th>
+                    <th className="pb-3 px-4">Winner</th>
+                    <th className="pb-3 px-4">Final Price</th>
+                    <th className="pb-3 px-4">Delivery</th>
+                    <th className="pb-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {sales.map(sale => (
+                    <tr key={sale.id} className="text-slate-300">
+                      <td className="py-4 pr-4 font-bold text-slate-200 max-w-xs truncate">{sale.jersey_title}</td>
+                      <td className="py-4 px-4 text-slate-400">{sale.winner_name}</td>
+                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">{formatPrice(sale.final_price)}</td>
+                      <td className="py-4 px-4 text-[10px] text-slate-400">
+                        <span className="block font-bold">{sale.courier || '-'}</span>
+                        <span className="block font-mono">{sale.tracking_number || 'Tracking not assigned'}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <Badge variant={sale.status === 'delivered' ? 'success' : sale.status === 'shipped' ? 'gold' : 'warning'}>
+                          {sale.status}
                         </Badge>
                       </td>
                     </tr>

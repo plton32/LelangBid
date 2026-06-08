@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../lib/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -22,6 +23,7 @@ interface WinningRecord {
 }
 
 export const UserDashboardPage: React.FC = () => {
+  const location = useLocation();
   const [winnings, setWinnings] = useState<WinningRecord[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,32 @@ export const UserDashboardPage: React.FC = () => {
     return url ? (url.startsWith('http') ? url : `http://localhost:5000${url}`) : defaultPlaceholder;
   };
 
+  const activeView = location.pathname.startsWith('/dashboard/shipments')
+    ? 'shipments'
+    : location.pathname.startsWith('/dashboard/winnings')
+      ? 'winnings'
+      : 'dashboard';
+
+  const visibleWinnings = activeView === 'shipments'
+    ? winnings.filter(win => win.courier || win.tracking_number || win.shipment_status)
+    : activeView === 'dashboard'
+      ? winnings.slice(0, 3)
+      : winnings;
+
+  const listTitle = activeView === 'shipments'
+    ? 'My Shipments'
+    : activeView === 'winnings'
+      ? 'My Winning Auctions'
+      : 'Recent Winning Auctions';
+
+  const emptyTitle = activeView === 'shipments'
+    ? 'No shipment records yet'
+    : 'No won auctions yet';
+
+  const emptyDescription = activeView === 'shipments'
+    ? 'Paid auction items will appear here once shipment details are created.'
+    : 'Participate in live jersey auctions to claim items!';
+
   return (
     <div className="space-y-8">
       {/* Top Banner Welcomes User */}
@@ -131,8 +159,12 @@ export const UserDashboardPage: React.FC = () => {
         {/* Left Side: Winnings Listing (8 columns) */}
         <div className="lg:col-span-8 space-y-6">
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-350 flex items-center">
-            <Award className="mr-2 text-brand-gold" size={18} />
-            My Winning Auctions
+            {activeView === 'shipments' ? (
+              <Truck className="mr-2 text-brand-gold" size={18} />
+            ) : (
+              <Award className="mr-2 text-brand-gold" size={18} />
+            )}
+            {listTitle}
           </h2>
 
           {loading ? (
@@ -141,18 +173,22 @@ export const UserDashboardPage: React.FC = () => {
                 <div key={i} className="h-40 rounded-2xl bg-brand-navy-light/10 border border-slate-800/50 animate-pulse" />
               ))}
             </div>
-          ) : winnings.length === 0 ? (
+          ) : visibleWinnings.length === 0 ? (
             <Card className="text-center py-16 bg-brand-navy-light/10">
-              <Gavel className="text-slate-600 mx-auto mb-3" size={32} />
-              <p className="text-slate-400 font-bold">No won auctions yet</p>
-              <p className="text-xs text-slate-500 mt-1 mb-5">Participate in live jersey auctions to claim items!</p>
+              {activeView === 'shipments' ? (
+                <Truck className="text-slate-600 mx-auto mb-3" size={32} />
+              ) : (
+                <Gavel className="text-slate-600 mx-auto mb-3" size={32} />
+              )}
+              <p className="text-slate-400 font-bold">{emptyTitle}</p>
+              <p className="text-xs text-slate-500 mt-1 mb-5">{emptyDescription}</p>
               <a href="/auctions?status=live" className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-brand-navy gold-gradient-bg">
                 Explore Catalog
               </a>
             </Card>
           ) : (
             <div className="space-y-4">
-              {winnings.map(win => {
+              {visibleWinnings.map(win => {
                 const isWaitingPay = win.status === 'waiting_payment';
                 const isPendingVerif = win.status === 'waiting_verification';
                 const isPaid = win.status === 'paid';

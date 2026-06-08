@@ -88,7 +88,7 @@ export const PublicLayout: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-brand-navy-deep text-slate-200">
       {/* Top Navbar */}
-      <nav className="sticky top-0 z-40 bg-brand-navy/90 backdrop-blur-md border-b border-slate-800/80 shadow-premium">
+      <nav className="sticky top-0 z-40 bg-black border-b border-brand-accent-red/25 shadow-premium">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
@@ -128,7 +128,7 @@ export const PublicLayout: React.FC = () => {
                   <div className="relative" ref={notifRef}>
                     <button
                       onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                      className="relative p-2 text-slate-400 hover:text-slate-200 focus:outline-none transition-colors"
+                      className="relative p-2 text-slate-400 hover:text-brand-accent-red focus:outline-none transition-colors"
                     >
                       <Bell size={20} />
                       {unreadCount > 0 && (
@@ -139,10 +139,10 @@ export const PublicLayout: React.FC = () => {
                     </button>
 
                     {notifDropdownOpen && (
-                      <div className="absolute right-0 mt-3 w-80 bg-brand-navy-light/95 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                      <div className="absolute right-0 mt-3 w-80 bg-brand-navy-light/95 border border-brand-accent-red/25 rounded-2xl shadow-2xl overflow-hidden z-50">
                         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
                           <span className="text-xs font-black uppercase tracking-wider text-slate-300">Notifications</span>
-                          {unreadCount > 0 && <span className="text-[10px] font-bold text-brand-gold">{unreadCount} unread</span>}
+                          {unreadCount > 0 && <span className="text-[10px] font-bold text-brand-accent-red">{unreadCount} unread</span>}
                         </div>
 
                         <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
@@ -178,7 +178,7 @@ export const PublicLayout: React.FC = () => {
                   {/* Dashboard link */}
                   <Link
                     to={getDashboardLink()}
-                    className="flex items-center space-x-1.5 py-2 px-4 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all"
+                    className="flex items-center space-x-1.5 py-2 px-4 border border-brand-accent-red/25 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:border-brand-accent-red/55 transition-all"
                   >
                     <UserIcon size={14} />
                     <span>Dashboard</span>
@@ -222,7 +222,7 @@ export const PublicLayout: React.FC = () => {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-brand-navy-light border-b border-slate-800/80 px-4 pt-2 pb-4 space-y-2">
+          <div className="md:hidden bg-black border-b border-brand-accent-red/25 px-4 pt-2 pb-4 space-y-2">
             {navLinks.map(link => (
               <Link
                 key={link.label}
@@ -282,7 +282,7 @@ export const PublicLayout: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-brand-navy border-t border-slate-900 py-10 mt-auto">
+      <footer className="bg-black border-t border-brand-accent-red/20 py-10 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500">
           <div className="flex items-center space-x-2 mb-4 md:mb-0">
             <Gavel className="text-brand-gold h-5 w-5" />
@@ -293,7 +293,7 @@ export const PublicLayout: React.FC = () => {
           </div>
 
           <div className="flex space-x-6">
-            <span className="hover:text-slate-300 transition-colors">Original Memorabilia</span>
+            <span className="hover:text-slate-300 transition-colors">Original LelangBid</span>
             <span className="hover:text-slate-300 transition-colors">COA Verified</span>
             <span className="hover:text-slate-300 transition-colors">Secure Escrow</span>
           </div>

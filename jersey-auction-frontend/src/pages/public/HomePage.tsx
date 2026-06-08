@@ -26,9 +26,8 @@ export const HomePage: React.FC = () => {
   return (
     <div className="pb-16">
       {/* Premium Hero Section */}
-      <section className="relative overflow-hidden bg-brand-navy border-b border-slate-900 py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.06),transparent_60%)]" />
-        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-brand-accent/5 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative overflow-hidden bg-black border-b border-brand-accent-red/20 py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(218,41,28,0.08),transparent_42%)]" />
         
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center space-x-2 bg-brand-gold/10 border border-brand-gold/25 px-4 py-1.5 rounded-full mb-6">
@@ -40,7 +39,7 @@ export const HomePage: React.FC = () => {
 
           <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-slate-100 uppercase tracking-tight leading-none">
             Collect Original Match-Worn <br className="hidden sm:inline" />
-            & Signed <span className="gold-gradient-text">Jersey Memorabilia</span>
+            & Signed <span className="gold-gradient-text">Jersey LelangBid</span>
           </h1>
           
           <p className="mt-6 max-w-2xl mx-auto text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
@@ -111,7 +110,7 @@ export const HomePage: React.FC = () => {
               <span className="w-2.5 h-2.5 rounded-full bg-brand-accent-red animate-pulse" />
               <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-slate-100">Live Jersey Auctions</h2>
             </div>
-            <p className="text-xs text-slate-500 mt-1">Memorabilia currently open for live bidding. Bid before they close!</p>
+            <p className="text-xs text-slate-500 mt-1">LelangBid items currently open for live bidding. Bid before they close!</p>
           </div>
 
           <Link to="/auctions?status=live" className="text-xs font-bold text-brand-gold hover:underline flex items-center">

@@ -52,7 +52,7 @@ export const RegisterPage: React.FC = () => {
           <h2 className="text-2xl font-extrabold text-slate-100 uppercase tracking-wide">
             Register on Lelang<span className="gold-gradient-text">BID</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-2 font-medium">Join premium sports memorabilia bidding community</p>
+          <p className="text-xs text-slate-500 mt-2 font-medium">Join premium sports LelangBid bidding community</p>
         </div>
 
         {error && (

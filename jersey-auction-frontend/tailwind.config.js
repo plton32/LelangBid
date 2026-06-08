@@ -9,20 +9,20 @@ export default {
       colors: {
         brand: {
           navy: {
-            DEFAULT: '#0B132B',
-            light: '#1C2541',
-            dark: '#050A18',
-            deep: '#02040A'
+            DEFAULT: '#050505',
+            light: '#1A1A1D',
+            dark: '#080808',
+            deep: '#000000'
           },
           gold: {
-            light: '#F4D35E',
-            DEFAULT: '#D4AF37',
-            dark: '#A67C1E'
+            light: '#E7C66A',
+            DEFAULT: '#C9A227',
+            dark: '#8F6F18'
           },
           accent: {
-            DEFAULT: '#38BDF8', // soft sky blue
-            green: '#10B981', // emerald success
-            red: '#EF4444' // red error/bid alert
+            DEFAULT: '#C8102E',
+            green: '#22C55E',
+            red: '#DA291C'
           }
         }
       },
@@ -30,9 +30,9 @@ export default {
         sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'premium': '0 10px 30px -10px rgba(0, 0, 0, 0.3)',
-        'premium-glow': '0 0 20px rgba(212, 175, 55, 0.15)',
-        'premium-glow-heavy': '0 0 35px rgba(212, 175, 55, 0.3)',
+        'premium': '0 14px 34px -18px rgba(0, 0, 0, 0.9)',
+        'premium-glow': '0 0 18px rgba(218, 41, 28, 0.22)',
+        'premium-glow-heavy': '0 0 30px rgba(218, 41, 28, 0.35)',
       }
     },
   },
