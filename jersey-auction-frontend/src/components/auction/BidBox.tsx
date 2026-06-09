@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Button from '../ui/Button';
-import Input from '../ui/Input';
 
 interface BidBoxProps {
   currentPrice: number;
@@ -9,6 +8,9 @@ interface BidBoxProps {
   bidsCount: number;
   sellerId: string;
   currentUserId?: string;
+  depositBalance?: number;
+  bidDepositRequired?: number;
+  depositRefundRate?: number;
   onPlaceBid: (amount: number) => Promise<void>;
   loading: boolean;
 }
@@ -20,6 +22,9 @@ export const BidBox: React.FC<BidBoxProps> = ({
   bidsCount,
   sellerId,
   currentUserId,
+  depositBalance = 0,
+  bidDepositRequired = 1000000,
+  depositRefundRate = 0.7,
   onPlaceBid,
   loading
 }) => {
@@ -27,6 +32,19 @@ export const BidBox: React.FC<BidBoxProps> = ({
   const nextMinBid = bidsCount > 0 ? currentPrice + minIncrement : startPrice;
   const [bidAmount, setBidAmount] = useState<string>(String(nextMinBid));
   const [error, setError] = useState<string>('');
+  const requiredDeposit = bidDepositRequired;
+  const depositShortfall = Math.max(0, requiredDeposit - depositBalance);
+  const hasEnoughDeposit = depositShortfall === 0;
+  const refundPercent = Math.round(depositRefundRate * 100);
+
+  const formatPrice = (amount: number) => `Rp ${amount.toLocaleString('id-ID')}`;
+
+  useEffect(() => {
+    setBidAmount(prev => {
+      const amount = Number(prev);
+      return Number.isFinite(amount) && amount >= nextMinBid ? prev : String(nextMinBid);
+    });
+  }, [nextMinBid]);
 
   const handleQuickAdd = (amountToAdd: number) => {
     const base = Math.max(Number(bidAmount) || 0, currentPrice);
@@ -50,6 +68,11 @@ export const BidBox: React.FC<BidBoxProps> = ({
 
     if (amount < nextMinBid) {
       setError(`Minimum bid amount is Rp ${nextMinBid.toLocaleString('id-ID')}`);
+      return;
+    }
+
+    if (!hasEnoughDeposit) {
+      setError(`Security deposit must be at least ${formatPrice(requiredDeposit)} before bidding`);
       return;
     }
 
@@ -83,7 +106,37 @@ export const BidBox: React.FC<BidBoxProps> = ({
     <div className="bg-brand-navy-light/25 border border-slate-800/80 rounded-2xl p-5 shadow-premium">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Minimum Bid Required</span>
-        <span className="text-sm font-black text-brand-gold font-mono">Rp {nextMinBid.toLocaleString('id-ID')}</span>
+        <span className="text-sm font-black text-brand-gold font-mono">{formatPrice(nextMinBid)}</span>
+      </div>
+
+      <div className={`mb-4 rounded-xl border p-3 ${
+        hasEnoughDeposit
+          ? 'border-brand-accent-green/25 bg-brand-accent-green/5'
+          : 'border-brand-accent-red/35 bg-brand-accent-red/10'
+      }`}>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500">Active Deposit</span>
+            <span className="mt-1 block text-xs font-black font-mono text-slate-200">{formatPrice(depositBalance)}</span>
+          </div>
+          <div className="text-right">
+            <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500">Required Deposit</span>
+            <span className="mt-1 block text-xs font-black font-mono text-brand-gold">{formatPrice(requiredDeposit)}</span>
+          </div>
+        </div>
+
+        <p className="mt-2 text-[10px] text-slate-400 leading-relaxed">
+          Deposit is verified manually by admin. If a winner does not complete payment, around {refundPercent}% of the deposit remains refundable.
+        </p>
+
+        {!hasEnoughDeposit && (
+          <a
+            href="/dashboard"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-brand-gold/25 bg-brand-navy px-4 py-2 text-[10px] font-black uppercase tracking-widest text-brand-gold hover:border-brand-gold/60"
+          >
+            Submit Deposit Proof
+          </a>
+        )}
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -99,7 +152,7 @@ export const BidBox: React.FC<BidBoxProps> = ({
             />
           </div>
 
-          <Button type="submit" variant="gold" loading={loading} className="py-3 px-6 rounded-xl text-xs uppercase tracking-widest">
+          <Button type="submit" variant="gold" loading={loading} disabled={!hasEnoughDeposit} className="py-3 px-6 rounded-xl text-xs uppercase tracking-widest">
             Place Bid
           </Button>
         </div>

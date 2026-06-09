@@ -19,6 +19,12 @@ export const AuctionDetailPage: React.FC = () => {
   const [activeImage, setActiveImage] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [bidLoading, setBidLoading] = useState(false);
+  const [depositInfo, setDepositInfo] = useState({
+    depositBalance: user?.depositBalance || 0,
+    bidDepositRequired: 1000000,
+    depositRefundRate: 0.7,
+    depositRequestMinimum: 50000
+  });
   const [highlightedBidId, setHighlightedBidId] = useState<string>('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -104,11 +110,31 @@ export const AuctionDetailPage: React.FC = () => {
     };
   }, [id]);
 
+  useEffect(() => {
+    const fetchDepositInfo = async () => {
+      if (!user) return;
+
+      try {
+        const response = await api.get('/deposits/me');
+        setDepositInfo({
+          depositBalance: Number(response.data.depositBalance || 0),
+          bidDepositRequired: Number(response.data.bidDepositRequired || response.data.bidDepositMinimum || 1000000),
+          depositRefundRate: Number(response.data.depositRefundRate || 0.7),
+          depositRequestMinimum: Number(response.data.depositRequestMinimum || 50000)
+        });
+      } catch (error) {
+        console.error('Error loading deposit info:', error);
+      }
+    };
+
+    fetchDepositInfo();
+  }, [user?.id]);
+
   const handlePlaceBid = async (amount: number) => {
     setBidLoading(true);
     setMessage(null);
     try {
-      const res = await api.post(`/auctions/${id}/bid`, { bidAmount: amount });
+      await api.post(`/auctions/${id}/bid`, { bidAmount: amount });
       setMessage({
         text: `Bid of Rp ${amount.toLocaleString('id-ID')} placed successfully!`,
         type: 'success'
@@ -116,6 +142,15 @@ export const AuctionDetailPage: React.FC = () => {
       // The SSE broadcast will automatically update prices and bids history, so we don't need manual state updates here
     } catch (err: any) {
       console.error(err);
+      const payload = err.response?.data;
+      if (payload?.requiredDeposit) {
+        setDepositInfo(prev => ({
+          depositBalance: Number(payload.depositBalance ?? prev.depositBalance),
+          bidDepositRequired: Number(payload.bidDepositRequired ?? payload.bidDepositMinimum ?? prev.bidDepositRequired),
+          depositRefundRate: Number(payload.depositRefundRate ?? prev.depositRefundRate),
+          depositRequestMinimum: Number(payload.depositRequestMinimum ?? prev.depositRequestMinimum)
+        }));
+      }
       setMessage({
         text: err.response?.data?.message || 'Error processing bid. Please try again.',
         type: 'error'
@@ -257,6 +292,9 @@ export const AuctionDetailPage: React.FC = () => {
               bidsCount={bids.length}
               sellerId={auction.seller_id}
               currentUserId={user?.id}
+              depositBalance={depositInfo.depositBalance}
+              bidDepositRequired={depositInfo.bidDepositRequired}
+              depositRefundRate={depositInfo.depositRefundRate}
               onPlaceBid={handlePlaceBid}
               loading={bidLoading}
             />

@@ -18,6 +18,7 @@ type DemoUser = {
   password: string;
   role: 'member' | 'seller' | 'admin';
   status: 'active' | 'suspended';
+  depositBalance?: number;
 };
 
 type DemoCategory = {
@@ -87,16 +88,16 @@ function ensureUser(user: DemoUser) {
   if (existing) {
     db.prepare(`
       UPDATE users
-      SET full_name = ?, phone = ?, password_hash = ?, role = ?, status = ?
+      SET full_name = ?, phone = ?, password_hash = ?, role = ?, status = ?, deposit_balance = ?
       WHERE id = ?
-    `).run(user.fullName, user.phone, passwordHash, user.role, user.status, existing.id);
+    `).run(user.fullName, user.phone, passwordHash, user.role, user.status, user.depositBalance || 0, existing.id);
     return existing.id;
   }
 
   db.prepare(`
-    INSERT INTO users (id, full_name, email, phone, password_hash, role, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(user.id, user.fullName, user.email, user.phone, passwordHash, user.role, user.status);
+    INSERT INTO users (id, full_name, email, phone, password_hash, role, status, deposit_balance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(user.id, user.fullName, user.email, user.phone, passwordHash, user.role, user.status, user.depositBalance || 0);
 
   return user.id;
 }
@@ -116,6 +117,7 @@ function ensureCategory(category: DemoCategory) {
 function clearDemoData() {
   const statements = [
     "DELETE FROM notifications WHERE id LIKE 'demo-%'",
+    "DELETE FROM deposits WHERE id LIKE 'demo-%' OR user_id LIKE 'demo-%'",
     "DELETE FROM shipments WHERE id LIKE 'demo-%' OR winner_id LIKE 'demo-%'",
     "DELETE FROM payments WHERE id LIKE 'demo-%' OR winner_id LIKE 'demo-%'",
     "DELETE FROM auction_winners WHERE id LIKE 'demo-%' OR auction_id LIKE 'demo-%'",
@@ -142,7 +144,8 @@ function seedDemo() {
       phone: '081234567890',
       password: 'admin123',
       role: 'admin',
-      status: 'active'
+      status: 'active',
+      depositBalance: 0
     }),
     seller: ensureUser({
       id: demoId('user-seller'),
@@ -151,7 +154,8 @@ function seedDemo() {
       phone: '081234567891',
       password: 'seller123',
       role: 'seller',
-      status: 'active'
+      status: 'active',
+      depositBalance: 0
     }),
     seller2: ensureUser({
       id: demoId('user-extra-seller2'),
@@ -160,7 +164,8 @@ function seedDemo() {
       phone: '081299887766',
       password: 'seller123',
       role: 'seller',
-      status: 'active'
+      status: 'active',
+      depositBalance: 0
     }),
     member: ensureUser({
       id: demoId('user-member'),
@@ -169,7 +174,8 @@ function seedDemo() {
       phone: '081234567892',
       password: 'member123',
       role: 'member',
-      status: 'active'
+      status: 'active',
+      depositBalance: 2000000
     }),
     buyer2: ensureUser({
       id: demoId('user-extra-buyer2'),
@@ -178,7 +184,8 @@ function seedDemo() {
       phone: '081355557777',
       password: 'member123',
       role: 'member',
-      status: 'active'
+      status: 'active',
+      depositBalance: 0
     }),
     buyer3: ensureUser({
       id: demoId('user-extra-buyer3'),
@@ -187,7 +194,8 @@ function seedDemo() {
       phone: '081366668888',
       password: 'member123',
       role: 'member',
-      status: 'active'
+      status: 'active',
+      depositBalance: 1500000
     }),
     suspended: ensureUser({
       id: demoId('user-extra-suspended'),
@@ -196,9 +204,32 @@ function seedDemo() {
       phone: '081377779999',
       password: 'member123',
       role: 'member',
-      status: 'suspended'
+      status: 'suspended',
+      depositBalance: 0
     })
   };
+
+  [
+    { userId: users.member, amount: 2000000 },
+    { userId: users.buyer3, amount: 1500000 }
+  ].forEach(deposit => {
+    db.prepare(`
+      INSERT INTO deposits (id, user_id, amount, status, method, proof_image_url, verified_by, verified_at, created_at)
+      VALUES (?, ?, ?, 'verified', 'demo_seed', ?, ?, ?, ?)
+    `).run(demoId(`deposit-${deposit.userId}`), deposit.userId, deposit.amount, demoProofUrl, users.admin, iso(-2 * DAY), iso(-2 * DAY));
+  });
+
+  db.prepare(`
+    INSERT INTO deposit_bank_accounts (id, bank_name, account_number, account_holder_name, instructions, is_active, updated_at)
+    VALUES ('primary', 'BCA', '1234567890', 'PT LelangBID Indonesia', 'Transfer sesuai nominal deposit, lalu upload bukti transfer dari dashboard.', 1, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      bank_name = excluded.bank_name,
+      account_number = excluded.account_number,
+      account_holder_name = excluded.account_holder_name,
+      instructions = excluded.instructions,
+      is_active = 1,
+      updated_at = excluded.updated_at
+  `).run(iso(-2 * DAY));
 
   const categories = [
     { id: demoId('cat-classic'), name: 'Classic Jersey', slug: 'classic-jersey' },

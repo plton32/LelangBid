@@ -13,6 +13,13 @@ fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 const db = new DatabaseSync(dbPath);
 
+function ensureColumn(tableName: string, columnName: string, columnDefinition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  if (!columns.some(column => column.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
+}
+
 export function initDb() {
   console.log(`Initializing SQLite database at: ${dbPath}`);
 
@@ -26,6 +33,7 @@ export function initDb() {
       password_hash TEXT,
       role TEXT DEFAULT 'member',
       status TEXT DEFAULT 'active',
+      deposit_balance REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -105,6 +113,29 @@ export function initDb() {
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS deposits (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      amount REAL NOT NULL,
+      status TEXT DEFAULT 'verified',
+      method TEXT DEFAULT 'bank_transfer',
+      proof_image_url TEXT,
+      admin_note TEXT,
+      verified_by TEXT REFERENCES users(id),
+      verified_at TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS deposit_bank_accounts (
+      id TEXT PRIMARY KEY,
+      bank_name TEXT NOT NULL,
+      account_number TEXT NOT NULL,
+      account_holder_name TEXT NOT NULL,
+      instructions TEXT,
+      is_active INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
     CREATE TABLE IF NOT EXISTS shipments (
       id TEXT PRIMARY KEY,
       winner_id TEXT REFERENCES auction_winners(id),
@@ -137,6 +168,12 @@ export function initDb() {
     );
   `);
 
+  ensureColumn('users', 'deposit_balance', 'REAL DEFAULT 0');
+  ensureColumn('deposits', 'proof_image_url', 'TEXT');
+  ensureColumn('deposits', 'admin_note', 'TEXT');
+  ensureColumn('deposits', 'verified_by', 'TEXT REFERENCES users(id)');
+  ensureColumn('deposits', 'verified_at', 'TEXT');
+
   // Seed default data if users table is empty
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
   if (userCount === 0) {
@@ -149,13 +186,13 @@ export function initDb() {
     const memberId = randomUUID();
 
     const insertUser = db.prepare(`
-      INSERT INTO users (id, full_name, email, phone, password_hash, role, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, full_name, email, phone, password_hash, role, status, deposit_balance)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insertUser.run(adminId, 'Super Admin LelangBID', 'admin@lelangbid.com', '081234567890', bcrypt.hashSync('admin123', salt), 'admin', 'active');
-    insertUser.run(sellerId, 'Jersey Collector Seller', 'seller@lelangbid.com', '081234567891', bcrypt.hashSync('seller123', salt), 'seller', 'active');
-    insertUser.run(memberId, 'Andi Member', 'member@lelangbid.com', '081234567892', bcrypt.hashSync('member123', salt), 'member', 'active');
+    insertUser.run(adminId, 'Super Admin LelangBID', 'admin@lelangbid.com', '081234567890', bcrypt.hashSync('admin123', salt), 'admin', 'active', 0);
+    insertUser.run(sellerId, 'Jersey Collector Seller', 'seller@lelangbid.com', '081234567891', bcrypt.hashSync('seller123', salt), 'seller', 'active', 0);
+    insertUser.run(memberId, 'Andi Member', 'member@lelangbid.com', '081234567892', bcrypt.hashSync('member123', salt), 'member', 'active', 1000000);
 
     // Seed categories
     const catClassicId = randomUUID();

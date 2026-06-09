@@ -11,6 +11,7 @@ type User = {
   password: string;
   role: Role;
   status: UserStatus;
+  deposit_balance: number;
   created_at: string;
 };
 
@@ -120,6 +121,28 @@ type Notification = {
   created_at: string;
 };
 
+type DepositTransaction = {
+  id: string;
+  user_id: string;
+  amount: number;
+  status: 'pending_verification' | 'verified' | 'rejected';
+  method: string;
+  proof_image_url?: string | null;
+  admin_note?: string | null;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  created_at: string;
+};
+
+type DepositBankAccount = {
+  id: string;
+  bank_name: string;
+  account_number: string;
+  account_holder_name: string;
+  instructions: string;
+  updated_at: string;
+};
+
 type DemoState = {
   users: User[];
   categories: Category[];
@@ -132,9 +155,15 @@ type DemoState = {
   shipments: Shipment[];
   certificates: Certificate[];
   notifications: Notification[];
+  deposits: DepositTransaction[];
+  depositBankAccount: DepositBankAccount | null;
 };
 
 const STORAGE_KEY = 'lelangbid_demo_state_v1';
+const BID_DEPOSIT_REQUIRED = 1000000;
+const DEPOSIT_REFUND_RATE = 0.7;
+const DEPOSIT_FORFEIT_RATE = 0.3;
+const DEPOSIT_REQUEST_MINIMUM = 50000;
 const now = Date.now();
 const day = 24 * 60 * 60 * 1000;
 const hour = 60 * 60 * 1000;
@@ -164,13 +193,13 @@ const initialState = (): DemoState => {
   ];
 
   const users: User[] = [
-    { id: ids.admin, full_name: 'Super Admin LelangBID', email: 'admin@lelangbid.com', phone: '081234567890', password: 'admin123', role: 'admin', status: 'active', created_at: createdAt },
-    { id: ids.seller, full_name: 'Jersey Collector Seller', email: 'seller@lelangbid.com', phone: '081234567891', password: 'seller123', role: 'seller', status: 'active', created_at: createdAt },
-    { id: ids.seller2, full_name: 'Vintage Kit Room', email: 'seller2@lelangbid.com', phone: '081299887766', password: 'seller123', role: 'seller', status: 'active', created_at: createdAt },
-    { id: ids.member, full_name: 'Andi Member', email: 'member@lelangbid.com', phone: '081234567892', password: 'member123', role: 'member', status: 'active', created_at: createdAt },
-    { id: ids.buyer, full_name: 'Raka Bid Hunter', email: 'buyer@lelangbid.com', phone: '081355557777', password: 'member123', role: 'member', status: 'active', created_at: createdAt },
-    { id: ids.collector, full_name: 'Dimas Kit Collector', email: 'collector@lelangbid.com', phone: '081366668888', password: 'member123', role: 'member', status: 'active', created_at: createdAt },
-    { id: 'demo-user-suspended', full_name: 'Suspended Demo User', email: 'suspended@lelangbid.com', phone: '081377779999', password: 'member123', role: 'member', status: 'suspended', created_at: createdAt }
+    { id: ids.admin, full_name: 'Super Admin LelangBID', email: 'admin@lelangbid.com', phone: '081234567890', password: 'admin123', role: 'admin', status: 'active', deposit_balance: 0, created_at: createdAt },
+    { id: ids.seller, full_name: 'Jersey Collector Seller', email: 'seller@lelangbid.com', phone: '081234567891', password: 'seller123', role: 'seller', status: 'active', deposit_balance: 0, created_at: createdAt },
+    { id: ids.seller2, full_name: 'Vintage Kit Room', email: 'seller2@lelangbid.com', phone: '081299887766', password: 'seller123', role: 'seller', status: 'active', deposit_balance: 0, created_at: createdAt },
+    { id: ids.member, full_name: 'Andi Member', email: 'member@lelangbid.com', phone: '081234567892', password: 'member123', role: 'member', status: 'active', deposit_balance: 2000000, created_at: createdAt },
+    { id: ids.buyer, full_name: 'Raka Bid Hunter', email: 'buyer@lelangbid.com', phone: '081355557777', password: 'member123', role: 'member', status: 'active', deposit_balance: 0, created_at: createdAt },
+    { id: ids.collector, full_name: 'Dimas Kit Collector', email: 'collector@lelangbid.com', phone: '081366668888', password: 'member123', role: 'member', status: 'active', deposit_balance: 1500000, created_at: createdAt },
+    { id: 'demo-user-suspended', full_name: 'Suspended Demo User', email: 'suspended@lelangbid.com', phone: '081377779999', password: 'member123', role: 'member', status: 'suspended', deposit_balance: 0, created_at: createdAt }
   ];
 
   const jersey = (id: string, category_id: string, seller_id: string, title: string, player_name: string, club_name: string, league_name: string, season: string, size: string, condition: string, jersey_type: string, is_signed: number, has_coa: number, status: Jersey['status'], description: string): Jersey => ({
@@ -337,12 +366,47 @@ const initialState = (): DemoState => {
     { id: 'notif-7', user_id: ids.admin, title: 'Demo data ready', message: 'Admin panel has users, auctions, payments, shipments, COA records, and revenue demo data.', type: 'admin', is_read: 0, created_at: iso(-10 * hour) }
   ];
 
-  return { users, categories, jerseys, jerseyImages, auctions, bids, winners, payments, shipments, certificates, notifications };
+  const deposits: DepositTransaction[] = [
+    { id: 'deposit-member-seed', user_id: ids.member, amount: 2000000, status: 'verified', method: 'demo_seed', proof_image_url: demoProofUrl, admin_note: null, verified_by: ids.admin, verified_at: iso(-2 * day), created_at: iso(-2 * day) },
+    { id: 'deposit-collector-seed', user_id: ids.collector, amount: 1500000, status: 'verified', method: 'demo_seed', proof_image_url: demoProofUrl, admin_note: null, verified_by: ids.admin, verified_at: iso(-2 * day), created_at: iso(-2 * day) }
+  ];
+
+  const depositBankAccount: DepositBankAccount = {
+    id: 'primary',
+    bank_name: 'BCA',
+    account_number: '1234567890',
+    account_holder_name: 'PT LelangBID Indonesia',
+    instructions: 'Transfer sesuai nominal deposit, lalu upload bukti transfer dari dashboard.',
+    updated_at: createdAt
+  };
+
+  return { users, categories, jerseys, jerseyImages, auctions, bids, winners, payments, shipments, certificates, notifications, deposits, depositBankAccount };
 };
+
+const hydrateState = (state: DemoState): DemoState => ({
+  ...state,
+  users: state.users.map(user => ({
+    ...user,
+    deposit_balance: Number((user as any).deposit_balance || 0)
+  })),
+  deposits: (state.deposits || []) as DepositTransaction[],
+  depositBankAccount: state.depositBankAccount || {
+    id: 'primary',
+    bank_name: 'BCA',
+    account_number: '1234567890',
+    account_holder_name: 'PT LelangBID Indonesia',
+    instructions: 'Transfer sesuai nominal deposit, lalu upload bukti transfer dari dashboard.',
+    updated_at: new Date().toISOString()
+  }
+});
 
 const loadState = (): DemoState => {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) return JSON.parse(stored) as DemoState;
+  if (stored) {
+    const state = hydrateState(JSON.parse(stored) as DemoState);
+    saveState(state);
+    return state;
+  }
   const state = initialState();
   saveState(state);
   return state;
@@ -382,7 +446,8 @@ const publicUser = (user: User) => ({
   email: user.email,
   phone: user.phone,
   role: user.role,
-  status: user.status
+  status: user.status,
+  depositBalance: Number(user.deposit_balance || 0)
 });
 
 const requireUser = (state: DemoState, config: AxiosRequestConfig) => {
@@ -576,6 +641,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
         password: body.password,
         role,
         status: 'active',
+        deposit_balance: 0,
         created_at: new Date().toISOString()
       };
       state.users.push(user);
@@ -586,6 +652,170 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     if (method === 'get' && path === '/auth/me') {
       const user = requireUser(state, config);
       return response(config, publicUser(user));
+    }
+
+    if (method === 'get' && path === '/deposits/me') {
+      const user = requireUser(state, config);
+      const transactions = state.deposits
+        .filter(deposit => deposit.user_id === user.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 10)
+        .map(({ user_id, ...deposit }) => deposit);
+
+      return response(config, {
+        depositBalance: Number(user.deposit_balance || 0),
+        bankAccount: state.depositBankAccount,
+        bidDepositRate: 0,
+        bidDepositMinimum: BID_DEPOSIT_REQUIRED,
+        bidDepositRequired: BID_DEPOSIT_REQUIRED,
+        depositRefundRate: DEPOSIT_REFUND_RATE,
+        depositForfeitRate: DEPOSIT_FORFEIT_RATE,
+        depositRequestMinimum: DEPOSIT_REQUEST_MINIMUM,
+        transactions
+      });
+    }
+
+    if (method === 'get' && path === '/deposits/bank-account') {
+      const user = requireUser(state, config);
+      return response(config, { bankAccount: state.depositBankAccount });
+    }
+
+    if (method === 'patch' && path === '/deposits/bank-account') {
+      const user = requireUser(state, config);
+      requireRole(user, ['admin']);
+
+      if (!body.bankName || !body.accountNumber || !body.accountHolderName) {
+        return errorResponse(config, 'Bank name, account number, and account holder name are required', 400);
+      }
+
+      state.depositBankAccount = {
+        id: 'primary',
+        bank_name: String(body.bankName),
+        account_number: String(body.accountNumber),
+        account_holder_name: String(body.accountHolderName),
+        instructions: String(body.instructions || ''),
+        updated_at: new Date().toISOString()
+      };
+      saveState(state);
+      return response(config, { message: 'Deposit bank account updated successfully', bankAccount: state.depositBankAccount });
+    }
+
+    if (method === 'post' && path === '/deposits/request') {
+      const user = requireUser(state, config);
+      const amount = Number(body.amount);
+
+      if (!Number.isFinite(amount) || amount < DEPOSIT_REQUEST_MINIMUM) {
+        return errorResponse(config, `Minimum deposit request is Rp ${DEPOSIT_REQUEST_MINIMUM.toLocaleString('id-ID')}`, 400);
+      }
+
+      if (!state.depositBankAccount) {
+        return errorResponse(config, 'Deposit bank account has not been configured by admin', 400);
+      }
+
+      const requiredShortfall = Math.max(0, BID_DEPOSIT_REQUIRED - Number(user.deposit_balance || 0));
+      if (requiredShortfall === 0) {
+        return errorResponse(config, 'Your bidding deposit is already active', 400);
+      }
+
+      if (amount < requiredShortfall) {
+        return errorResponse(config, `Deposit request must be at least Rp ${requiredShortfall.toLocaleString('id-ID')} to activate bidding`, 400);
+      }
+
+      if (state.deposits.some(deposit => deposit.user_id === user.id && deposit.status === 'pending_verification')) {
+        return errorResponse(config, 'You already have a deposit request waiting for admin verification', 400);
+      }
+
+      const deposit: DepositTransaction = {
+        id: nextId('deposit'),
+        user_id: user.id,
+        amount,
+        status: 'pending_verification',
+        method: 'bank_transfer',
+        proof_image_url: demoProofUrl,
+        admin_note: null,
+        verified_by: null,
+        verified_at: null,
+        created_at: new Date().toISOString()
+      };
+
+      state.deposits.push(deposit);
+      state.notifications.push({
+        id: nextId('notif'),
+        user_id: ids.admin,
+        title: 'Deposit waiting for verification',
+        message: `${user.full_name} uploaded a deposit proof for Rp ${amount.toLocaleString('id-ID')}.`,
+        type: 'deposit',
+        is_read: 0,
+        created_at: new Date().toISOString()
+      });
+      saveState(state);
+
+      return response(config, {
+        message: 'Deposit request submitted. Waiting for admin verification.',
+        depositId: deposit.id,
+        status: deposit.status,
+        bidDepositRate: 0,
+        bidDepositMinimum: BID_DEPOSIT_REQUIRED,
+        bidDepositRequired: BID_DEPOSIT_REQUIRED,
+        depositRefundRate: DEPOSIT_REFUND_RATE,
+        depositRequestMinimum: DEPOSIT_REQUEST_MINIMUM
+      }, 201);
+    }
+
+    if (method === 'get' && path === '/deposits/admin/requests') {
+      const user = requireUser(state, config);
+      requireRole(user, ['admin']);
+      const status = parsedUrl.searchParams.get('status');
+      let rows = state.deposits;
+      if (status) rows = rows.filter(deposit => deposit.status === status);
+
+      return response(config, rows
+        .map(deposit => {
+          const owner = userById(state, deposit.user_id);
+          return {
+            ...deposit,
+            user_name: owner?.full_name,
+            user_email: owner?.email,
+            deposit_balance: owner?.deposit_balance || 0
+          };
+        })
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      );
+    }
+
+    const verifyDepositMatch = path.match(/^\/deposits\/admin\/requests\/([^/]+)\/verify$/);
+    if (method === 'patch' && verifyDepositMatch) {
+      const admin = requireUser(state, config);
+      requireRole(admin, ['admin']);
+      const deposit = state.deposits.find(row => row.id === verifyDepositMatch[1]);
+      if (!deposit) return errorResponse(config, 'Deposit request not found', 404);
+      if (deposit.status !== 'pending_verification') return errorResponse(config, `Deposit request is already ${deposit.status}`, 400);
+      if (!['verified', 'rejected'].includes(body.status)) return errorResponse(config, 'Valid status (verified or rejected) is required', 400);
+
+      deposit.status = body.status;
+      deposit.admin_note = body.adminNote || null;
+      deposit.verified_by = admin.id;
+      deposit.verified_at = new Date().toISOString();
+
+      const owner = userById(state, deposit.user_id);
+      if (body.status === 'verified' && owner) {
+        owner.deposit_balance = Number(owner.deposit_balance || 0) + deposit.amount;
+      }
+
+      state.notifications.push({
+        id: nextId('notif'),
+        user_id: deposit.user_id,
+        title: body.status === 'verified' ? 'Deposit Verified' : 'Deposit Rejected',
+        message: body.status === 'verified'
+          ? `Your security deposit of Rp ${deposit.amount.toLocaleString('id-ID')} has been verified. You can now place bids.`
+          : 'Your deposit transfer could not be verified. Please submit a valid transfer proof.',
+        type: body.status === 'verified' ? 'deposit' : 'deposit_rejected',
+        is_read: 0,
+        created_at: new Date().toISOString()
+      });
+
+      saveState(state);
+      return response(config, { message: `Deposit request marked as ${body.status}`, status: body.status, depositBalance: owner?.deposit_balance || 0 });
     }
 
     if (method === 'get' && path === '/jerseys/categories') {
@@ -683,9 +913,30 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       if (auction.status !== 'live') return errorResponse(config, 'Bids are only allowed on live auctions.', 400);
       if (jersey?.seller_id === user.id) return errorResponse(config, 'You cannot bid on your own jersey auction', 400);
       const bidAmount = Number(body.bidAmount);
+      if (!Number.isFinite(bidAmount) || bidAmount <= 0) return errorResponse(config, 'A valid bid amount is required', 400);
       const bidsCount = state.bids.filter(b => b.auction_id === auction.id).length;
       const minAllowed = bidsCount > 0 ? auction.current_price + auction.min_increment : auction.start_price;
       if (bidAmount < minAllowed) return errorResponse(config, `Bid amount must be at least Rp ${minAllowed.toLocaleString('id-ID')}`, 400);
+      const requiredDeposit = BID_DEPOSIT_REQUIRED;
+      const depositBalance = Number(user.deposit_balance || 0);
+      if (user.role !== 'admin' && depositBalance < requiredDeposit) {
+        const depositShortfall = requiredDeposit - depositBalance;
+        return Promise.reject({
+          response: response(config, {
+            message: `Security deposit must be verified at Rp ${requiredDeposit.toLocaleString('id-ID')} before bidding. Please submit a deposit request for Rp ${depositShortfall.toLocaleString('id-ID')} and wait for admin verification.`,
+            depositBalance,
+            requiredDeposit,
+            depositShortfall,
+            bidDepositRate: 0,
+            bidDepositMinimum: BID_DEPOSIT_REQUIRED,
+            bidDepositRequired: BID_DEPOSIT_REQUIRED,
+            depositRefundRate: DEPOSIT_REFUND_RATE,
+            depositForfeitRate: DEPOSIT_FORFEIT_RATE,
+            depositRequestMinimum: DEPOSIT_REQUEST_MINIMUM
+          }, 402),
+          config
+        });
+      }
       const bidId = nextId('bid');
       state.bids.push({ id: bidId, auction_id: auction.id, user_id: user.id, bid_amount: bidAmount, created_at: new Date().toISOString() });
       auction.current_price = bidAmount;

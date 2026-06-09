@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
-import { Gavel, Award, Truck, AlertCircle, Sparkles, Upload } from 'lucide-react';
+import { Gavel, Award, Truck, AlertCircle, Sparkles, Upload, Wallet } from 'lucide-react';
 
 interface WinningRecord {
   id: string;
@@ -26,6 +26,14 @@ export const UserDashboardPage: React.FC = () => {
   const location = useLocation();
   const [winnings, setWinnings] = useState<WinningRecord[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [depositInfo, setDepositInfo] = useState({
+    depositBalance: 0,
+    bidDepositRequired: 1000000,
+    depositRefundRate: 0.7,
+    depositRequestMinimum: 50000,
+    bankAccount: null as any,
+    transactions: [] as any[]
+  });
   const [loading, setLoading] = useState(true);
 
   // Upload proof modal state
@@ -36,8 +44,13 @@ export const UserDashboardPage: React.FC = () => {
   const [courier, setCourier] = useState('JNE Reguler');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositRequestAmount, setDepositRequestAmount] = useState('1000000');
+  const [depositProofFile, setDepositProofFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [depositError, setDepositError] = useState('');
+  const [depositSuccess, setDepositSuccess] = useState('');
 
   const fetchDashboardData = async () => {
     try {
@@ -46,10 +59,79 @@ export const UserDashboardPage: React.FC = () => {
 
       const notifRes = await api.get('/notifications');
       setNotifications(notifRes.data.slice(0, 5));
+
+      const depositRes = await api.get('/deposits/me');
+      setDepositInfo({
+        depositBalance: Number(depositRes.data.depositBalance || 0),
+        bidDepositRequired: Number(depositRes.data.bidDepositRequired || depositRes.data.bidDepositMinimum || 1000000),
+        depositRefundRate: Number(depositRes.data.depositRefundRate || 0.7),
+        depositRequestMinimum: Number(depositRes.data.depositRequestMinimum || 50000),
+        bankAccount: depositRes.data.bankAccount || null,
+        transactions: depositRes.data.transactions || []
+      });
     } catch (err) {
       console.error('Error fetching dashboard details:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDepositRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(depositRequestAmount);
+    const requiredShortfall = Math.max(0, depositInfo.bidDepositRequired - depositInfo.depositBalance);
+    const minimumRequest = Math.max(requiredShortfall, depositInfo.depositRequestMinimum);
+
+    if (!depositInfo.bankAccount) {
+      setDepositError('Admin has not configured a deposit bank account yet.');
+      return;
+    }
+
+    if (!depositProofFile) {
+      setDepositError('Please upload your transfer proof image.');
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount < minimumRequest) {
+      setDepositError(`Deposit request must be at least ${formatPrice(minimumRequest)} to activate bidding.`);
+      return;
+    }
+
+    setDepositLoading(true);
+    setDepositError('');
+    setDepositSuccess('');
+
+    try {
+      const formData = new FormData();
+      formData.append('amount', String(amount));
+      formData.append('proof', depositProofFile);
+
+      const response = await api.post('/deposits/request', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setDepositInfo(prev => ({
+        ...prev,
+        bidDepositRequired: Number(response.data.bidDepositRequired || prev.bidDepositRequired),
+        depositRequestMinimum: Number(response.data.depositRequestMinimum || prev.depositRequestMinimum),
+        transactions: [
+          {
+            id: response.data.depositId,
+            amount,
+            status: 'pending_verification',
+            method: 'bank_transfer',
+            created_at: new Date().toISOString()
+          },
+          ...prev.transactions
+        ].slice(0, 10)
+      }));
+      setDepositProofFile(null);
+      setDepositSuccess('Deposit request submitted. Waiting for admin verification.');
+    } catch (err: any) {
+      console.error(err);
+      setDepositError(err.response?.data?.message || 'Error submitting deposit request. Please try again.');
+    } finally {
+      setDepositLoading(false);
     }
   };
 
@@ -265,6 +347,109 @@ export const UserDashboardPage: React.FC = () => {
 
         {/* Right Side: Quick Notifications box (4 columns) */}
         <div className="lg:col-span-4 space-y-6">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-350">Security Deposit</h2>
+
+          <Card className="bg-brand-navy-light/10 border-slate-800 p-5 rounded-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-brand-gold/10 rounded-xl text-brand-gold">
+                  <Wallet size={18} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Active Balance</span>
+                  <span className="text-lg font-black text-brand-gold font-mono block mt-0.5">{formatPrice(depositInfo.depositBalance)}</span>
+                </div>
+              </div>
+              <Badge variant={depositInfo.depositBalance >= depositInfo.bidDepositRequired ? 'success' : 'warning'}>
+                {depositInfo.depositBalance >= depositInfo.bidDepositRequired ? 'ready' : 'pending'}
+              </Badge>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-850 bg-slate-950/35 p-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Required For Bidding</span>
+              <span className="text-sm font-black text-slate-200 font-mono block mt-0.5">{formatPrice(depositInfo.bidDepositRequired)}</span>
+              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                If a winning bidder does not complete payment, around {Math.round(depositInfo.depositRefundRate * 100)}% of this deposit remains refundable.
+              </p>
+            </div>
+
+            {depositInfo.bankAccount ? (
+              <div className="mt-4 rounded-xl border border-brand-gold/20 bg-brand-gold/5 p-3">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Transfer To</span>
+                <span className="text-sm font-black text-brand-gold block mt-0.5">{depositInfo.bankAccount.bank_name}</span>
+                <span className="text-xs font-mono font-black text-slate-200 block mt-1">{depositInfo.bankAccount.account_number}</span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">a/n {depositInfo.bankAccount.account_holder_name}</span>
+                {depositInfo.bankAccount.instructions && (
+                  <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">{depositInfo.bankAccount.instructions}</p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-brand-accent-red/30 bg-brand-accent-red/10 p-3 text-xs text-brand-accent-red font-semibold flex items-start">
+                <AlertCircle size={14} className="mr-2 mt-0.5 shrink-0" />
+                Admin has not configured a deposit bank account yet.
+              </div>
+            )}
+
+            {(depositError || depositSuccess) && (
+              <div className={`mt-4 p-3 rounded-xl border text-xs font-semibold ${
+                depositError
+                  ? 'bg-brand-accent-red/10 border-brand-accent-red/30 text-brand-accent-red'
+                  : 'bg-brand-accent-green/10 border-brand-accent-green/30 text-brand-accent-green'
+              }`}>
+                {depositError || depositSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleDepositRequest} className="mt-4 space-y-3">
+              <div className="relative">
+                <span className="absolute left-4 top-3 text-sm font-bold text-slate-500">Rp</span>
+                <input
+                  type="number"
+                  min={depositInfo.depositRequestMinimum}
+                  value={depositRequestAmount}
+                  onChange={(e) => setDepositRequestAmount(e.target.value)}
+                  disabled={depositLoading}
+                  className="w-full pl-10 pr-4 py-3 bg-brand-navy text-slate-100 rounded-xl border border-slate-800 focus:outline-none focus:border-brand-gold/50 font-mono font-bold"
+                />
+              </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setDepositProofFile(e.target.files?.[0] || null)}
+                disabled={depositLoading || !depositInfo.bankAccount}
+                className="w-full bg-brand-navy p-3 rounded-xl border border-slate-800 text-slate-400 focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-brand-gold file:text-brand-navy file:cursor-pointer"
+              />
+
+              <Button
+                type="submit"
+                variant="gold"
+                fullWidth
+                loading={depositLoading}
+                disabled={!depositInfo.bankAccount}
+                className="py-2.5 text-[10px] uppercase tracking-widest font-black"
+              >
+                Submit Deposit Proof
+              </Button>
+            </form>
+
+            {depositInfo.transactions.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-850 space-y-2">
+                {depositInfo.transactions.slice(0, 3).map(tx => (
+                  <div key={tx.id} className="flex items-center justify-between gap-3 text-[10px]">
+                    <div>
+                      <span className="font-bold text-slate-400 block">{new Date(tx.created_at).toLocaleDateString('id-ID')}</span>
+                      <span className="font-black font-mono text-slate-200 block mt-0.5">{formatPrice(Number(tx.amount || 0))}</span>
+                    </div>
+                    <Badge variant={tx.status === 'verified' ? 'success' : tx.status === 'pending_verification' ? 'warning' : 'closed'}>
+                      {String(tx.status || '').replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-350">Alerts Box</h2>
           
           <Card className="bg-brand-navy-light/10 border-slate-800 p-5 rounded-2xl">

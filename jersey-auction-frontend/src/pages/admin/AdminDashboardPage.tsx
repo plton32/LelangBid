@@ -9,15 +9,16 @@ import Modal from '../../components/ui/Modal';
 import { 
   LayoutDashboard, Users, Tag, Gavel, 
   CreditCard, Truck, Award, FileSpreadsheet,
-  Check, X, Plus, Eye, Download
+  Check, X, Plus, Eye, Download, Wallet
 } from 'lucide-react';
 
-type AdminTab = 'dashboard' | 'users' | 'verify-jerseys' | 'auctions' | 'payments' | 'shipments' | 'coa';
+type AdminTab = 'dashboard' | 'users' | 'verify-jerseys' | 'auctions' | 'deposits' | 'payments' | 'shipments' | 'coa';
 
 const getAdminTabFromPath = (pathname: string): AdminTab => {
   if (pathname.startsWith('/admin/users')) return 'users';
   if (pathname.startsWith('/admin/jerseys')) return 'verify-jerseys';
   if (pathname.startsWith('/admin/auctions')) return 'auctions';
+  if (pathname.startsWith('/admin/deposits')) return 'deposits';
   if (pathname.startsWith('/admin/payments')) return 'payments';
   if (pathname.startsWith('/admin/shipments')) return 'shipments';
   if (pathname.startsWith('/admin/certificates')) return 'coa';
@@ -32,6 +33,8 @@ export const AdminDashboardPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [jerseys, setJerseys] = useState<any[]>([]);
   const [auctions, setAuctions] = useState<any[]>([]);
+  const [depositRequests, setDepositRequests] = useState<any[]>([]);
+  const [depositBankAccount, setDepositBankAccount] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
@@ -54,6 +57,13 @@ export const AdminDashboardPage: React.FC = () => {
   // Payment proof image modal state
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [activeProofUrl, setActiveProofUrl] = useState('');
+
+  // Deposit account form state
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountHolderName, setAccountHolderName] = useState('');
+  const [depositInstructions, setDepositInstructions] = useState('');
+  const [depositAdminMessage, setDepositAdminMessage] = useState('');
 
   // Form loading states
   const [formLoading, setFormLoading] = useState(false);
@@ -78,6 +88,20 @@ export const AdminDashboardPage: React.FC = () => {
       // Auctions list
       const auctionsRes = await api.get('/auctions');
       setAuctions(auctionsRes.data);
+
+      // Deposit requests and admin bank account
+      const depositRes = await api.get('/deposits/admin/requests');
+      setDepositRequests(depositRes.data);
+
+      const bankRes = await api.get('/deposits/bank-account');
+      const bankAccount = bankRes.data.bankAccount || null;
+      setDepositBankAccount(bankAccount);
+      if (bankAccount) {
+        setBankName(bankAccount.bank_name || '');
+        setAccountNumber(bankAccount.account_number || '');
+        setAccountHolderName(bankAccount.account_holder_name || '');
+        setDepositInstructions(bankAccount.instructions || '');
+      }
 
       // Payments list
       const paymentsRes = await api.get('/payments');
@@ -174,6 +198,36 @@ export const AdminDashboardPage: React.FC = () => {
       fetchAdminData();
     } catch (err) {
       alert('Error verifying payment');
+    }
+  };
+
+  const handleSaveDepositBankAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setDepositAdminMessage('');
+
+    try {
+      const response = await api.patch('/deposits/bank-account', {
+        bankName,
+        accountNumber,
+        accountHolderName,
+        instructions: depositInstructions
+      });
+      setDepositBankAccount(response.data.bankAccount);
+      setDepositAdminMessage('Deposit bank account updated.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error updating deposit bank account');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleVerifyDeposit = async (depositId: string, status: 'verified' | 'rejected') => {
+    try {
+      await api.patch(`/deposits/admin/requests/${depositId}/verify`, { status });
+      fetchAdminData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error verifying deposit');
     }
   };
 
@@ -327,6 +381,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'users', label: 'Users', path: '/admin/users', icon: <Users size={14} /> },
           { id: 'verify-jerseys', label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={14} /> },
           { id: 'auctions', label: 'Auctions', path: '/admin/auctions', icon: <Gavel size={14} /> },
+          { id: 'deposits', label: 'Deposits', path: '/admin/deposits', icon: <Wallet size={14} /> },
           { id: 'payments', label: 'Verify Payments', path: '/admin/payments', icon: <CreditCard size={14} /> },
           { id: 'shipments', label: 'Shipments', path: '/admin/shipments', icon: <Truck size={14} /> },
           { id: 'coa', label: 'COA Certs', path: '/admin/certificates', icon: <Award size={14} /> },
@@ -361,6 +416,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th className="pb-3 pr-4">Full Name</th>
                   <th className="pb-3 px-4">Email</th>
                   <th className="pb-3 px-4">Role</th>
+                  <th className="pb-3 px-4">Deposit</th>
                   <th className="pb-3 px-4">Status</th>
                   <th className="pb-3 px-4">Actions</th>
                 </tr>
@@ -371,6 +427,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <td className="py-3.5 pr-4 font-bold text-slate-250">{u.full_name}</td>
                     <td className="py-3.5 px-4 font-mono">{u.email}</td>
                     <td className="py-3.5 px-4 uppercase text-brand-accent font-semibold">{u.role}</td>
+                    <td className="py-3.5 px-4 font-mono font-black text-brand-gold">{formatPrice(Number(u.deposit_balance || 0))}</td>
                     <td className="py-3.5 px-4">
                       <Badge variant={u.status === 'active' ? 'success' : 'closed'}>{u.status}</Badge>
                     </td>
@@ -514,6 +571,139 @@ export const AdminDashboardPage: React.FC = () => {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* 4. DEPOSIT VERIFICATION TAB */}
+      {activeTab === 'deposits' && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <Card className="xl:col-span-4 p-5 bg-brand-navy-light/15 border-slate-800">
+            <h3 className="font-bold text-slate-200 text-sm mb-4 uppercase tracking-wide">Deposit Bank Account</h3>
+            {depositAdminMessage && (
+              <div className="mb-4 p-3 rounded-xl border border-brand-accent-green/30 bg-brand-accent-green/10 text-brand-accent-green text-xs font-semibold">
+                {depositAdminMessage}
+              </div>
+            )}
+            <form onSubmit={handleSaveDepositBankAccount} className="space-y-4">
+              <Input
+                label="Bank Name *"
+                placeholder="e.g. BCA"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                required
+              />
+              <Input
+                label="Account Number *"
+                placeholder="e.g. 1234567890"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                required
+              />
+              <Input
+                label="Account Holder Name *"
+                placeholder="e.g. PT LelangBID Indonesia"
+                value={accountHolderName}
+                onChange={(e) => setAccountHolderName(e.target.value)}
+                required
+              />
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Transfer Instructions
+                </label>
+                <textarea
+                  value={depositInstructions}
+                  onChange={(e) => setDepositInstructions(e.target.value)}
+                  className="w-full px-4 py-3 bg-brand-navy text-slate-100 placeholder-slate-600 rounded-xl border border-slate-800 focus:outline-none focus:border-brand-gold/50"
+                  rows={4}
+                  placeholder="e.g. Use your registered email in transfer notes."
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="gold"
+                fullWidth
+                loading={formLoading}
+                className="py-3 uppercase tracking-widest text-xs font-black"
+              >
+                Save Bank Account
+              </Button>
+            </form>
+          </Card>
+
+          <Card className="xl:col-span-8 p-5 bg-brand-navy-light/15 border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-200 text-sm uppercase tracking-wide">Deposit Verification Queue</h3>
+              {depositBankAccount && (
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Active: {depositBankAccount.bank_name} {depositBankAccount.account_number}
+                </span>
+              )}
+            </div>
+
+            {depositRequests.length === 0 ? (
+              <p className="text-center py-6 text-slate-500 font-bold">No deposit requests yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {depositRequests.map(deposit => (
+                  <div key={deposit.id} className="p-4 bg-brand-navy border border-slate-850 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center space-x-4">
+                      {deposit.proof_image_url && (
+                        <button
+                          onClick={() => {
+                            setActiveProofUrl(deposit.proof_image_url);
+                            setProofModalOpen(true);
+                          }}
+                          className="w-14 h-14 rounded-lg overflow-hidden bg-slate-950 border border-slate-800 shrink-0 hover:scale-105 transition-transform relative flex items-center justify-center group"
+                        >
+                          <img
+                            src={getFullImgUrl(deposit.proof_image_url)}
+                            alt="Deposit proof"
+                            className="w-full h-full object-cover group-hover:opacity-70"
+                          />
+                          <Eye size={14} className="absolute text-brand-gold opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      )}
+
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-xs sm:text-sm">{deposit.user_name}</h4>
+                        <p className="text-[10px] text-slate-450 mt-1 font-semibold uppercase tracking-wider">
+                          {deposit.user_email} | Requested: <span className="text-brand-gold font-mono font-black">{formatPrice(Number(deposit.amount || 0))}</span>
+                        </p>
+                        <p className="text-[9px] text-slate-500 font-mono mt-0.5">
+                          Submitted: {new Date(deposit.created_at).toLocaleString('id-ID')} | Current Balance: {formatPrice(Number(deposit.deposit_balance || 0))}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <Badge variant={deposit.status === 'verified' ? 'success' : deposit.status === 'pending_verification' ? 'warning' : 'closed'} className="mr-3">
+                        {String(deposit.status).replace(/_/g, ' ')}
+                      </Badge>
+
+                      {deposit.status === 'pending_verification' && (
+                        <>
+                          <button
+                            onClick={() => handleVerifyDeposit(deposit.id, 'verified')}
+                            className="p-2 bg-brand-accent-green/15 text-brand-accent-green hover:bg-brand-accent-green/30 rounded-lg transition-colors flex items-center"
+                            title="Verify Deposit"
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleVerifyDeposit(deposit.id, 'rejected')}
+                            className="p-2 bg-brand-accent-red/15 text-brand-accent-red hover:bg-brand-accent-red/30 rounded-lg transition-colors flex items-center"
+                            title="Reject Deposit"
+                          >
+                            <X size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
       )}
 
       {/* 4. PAYMENT VERIFICATION TAB */}

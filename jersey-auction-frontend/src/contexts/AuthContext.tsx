@@ -8,6 +8,7 @@ export interface User {
   phone?: string;
   role: 'member' | 'seller' | 'admin' | 'superadmin';
   status: 'active' | 'suspended';
+  depositBalance?: number;
 }
 
 interface AuthContextType {

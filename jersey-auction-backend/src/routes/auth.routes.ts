@@ -46,7 +46,8 @@ router.post('/register', (req, res) => {
         email,
         phone,
         role: targetRole,
-        status: 'active'
+        status: 'active',
+        depositBalance: 0
       }
     });
   } catch (error) {
@@ -88,7 +89,8 @@ router.post('/login', (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        status: user.status
+        status: user.status,
+        depositBalance: Number(user.deposit_balance || 0)
       }
     });
   } catch (error) {
@@ -100,7 +102,7 @@ router.post('/login', (req, res) => {
 // Get profile
 router.get('/me', authenticateToken, (req: AuthRequest, res) => {
   try {
-    const user = db.prepare('SELECT id, full_name, email, phone, role, status FROM users WHERE id = ?').get(req.user!.id) as any;
+    const user = db.prepare('SELECT id, full_name, email, phone, role, status, deposit_balance FROM users WHERE id = ?').get(req.user!.id) as any;
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -111,7 +113,8 @@ router.get('/me', authenticateToken, (req: AuthRequest, res) => {
       email: user.email,
       phone: user.phone,
       role: user.role,
-      status: user.status
+      status: user.status,
+      depositBalance: Number(user.deposit_balance || 0)
     });
   } catch (error) {
     console.error('Me query error:', error);

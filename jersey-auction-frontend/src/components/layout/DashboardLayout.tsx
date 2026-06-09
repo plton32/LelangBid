@@ -32,6 +32,7 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Manage Users', path: '/admin/users', icon: <Users size={16} /> },
         { label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={16} /> },
         { label: 'Manage Auctions', path: '/admin/auctions', icon: <Gavel size={16} /> },
+        { label: 'Verify Deposits', path: '/admin/deposits', icon: <CreditCard size={16} /> },
         { label: 'Verify Payments', path: '/admin/payments', icon: <CreditCard size={16} /> },
         { label: 'Input Shipments', path: '/admin/shipments', icon: <Truck size={16} /> },
         { label: 'Issue COA', path: '/admin/certificates', icon: <Award size={16} /> },

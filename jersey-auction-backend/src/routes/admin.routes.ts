@@ -38,7 +38,7 @@ router.get('/stats', (req, res) => {
 // GET users listing
 router.get('/users', (req, res) => {
   try {
-    const users = db.prepare('SELECT id, full_name, email, phone, role, status, created_at FROM users').all();
+    const users = db.prepare('SELECT id, full_name, email, phone, role, status, deposit_balance, created_at FROM users').all();
     return res.json(users);
   } catch (error) {
     console.error('Error fetching admin users:', error);

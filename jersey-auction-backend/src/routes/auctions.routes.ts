@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import db from '../config/db';
 import { authenticateToken, AuthRequest, requireRole } from '../middleware/auth';
 import { SseService } from '../services/sse.service';
+import { calculateBidDepositRequirement, getDepositPolicy } from '../utils/deposit';
 
 const router = Router();
 
@@ -177,9 +178,10 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
   const { id: auctionId } = req.params;
   const { bidAmount } = req.body;
   const userId = req.user!.id;
+  const normalizedBidAmount = Number(bidAmount);
 
-  if (!bidAmount) {
-    return res.status(400).json({ message: 'Bid amount is required' });
+  if (!Number.isFinite(normalizedBidAmount) || normalizedBidAmount <= 0) {
+    return res.status(400).json({ message: 'A valid bid amount is required' });
   }
 
   try {
@@ -222,20 +224,35 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
       minAllowed = auction.current_price + auction.min_increment;
     }
 
-    if (bidAmount < minAllowed) {
+    if (normalizedBidAmount < minAllowed) {
       return res.status(400).json({ message: `Bid amount must be at least Rp ${minAllowed.toLocaleString('id-ID')}` });
+    }
+
+    const requiredDeposit = calculateBidDepositRequirement(normalizedBidAmount);
+    const bidder = db.prepare('SELECT deposit_balance FROM users WHERE id = ?').get(userId) as any;
+    const depositBalance = Number(bidder?.deposit_balance || 0);
+
+    if (req.user!.role !== 'admin' && depositBalance < requiredDeposit) {
+      const depositShortfall = requiredDeposit - depositBalance;
+      return res.status(402).json({
+        message: `Security deposit must be verified at Rp ${requiredDeposit.toLocaleString('id-ID')} before bidding. Please submit a deposit request for Rp ${depositShortfall.toLocaleString('id-ID')} and wait for admin verification.`,
+        depositBalance,
+        requiredDeposit,
+        depositShortfall,
+        ...getDepositPolicy()
+      });
     }
 
     // Insert bid
     const bidId = randomUUID();
     db.prepare(`
       INSERT INTO bids (id, auction_id, user_id, bid_amount) VALUES (?, ?, ?, ?)
-    `).run(bidId, auctionId, userId, bidAmount);
+    `).run(bidId, auctionId, userId, normalizedBidAmount);
 
     // Update auction current price
     db.prepare(`
       UPDATE auctions SET current_price = ? WHERE id = ?
-    `).run(bidAmount, auctionId);
+    `).run(normalizedBidAmount, auctionId);
 
     // Anti-Sniper Check (last 2 minutes extension)
     let finalEndTime = auction.end_time;
@@ -263,12 +280,12 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
       if (prevBidder) {
         db.prepare(`
           INSERT INTO notifications (id, user_id, title, message, type)
-          VALUES (?, ?, ?, ?, 'outbid')
+          VALUES (?, ?, ?, ?, ?)
         `).run(
           randomUUID(),
           prevBidder.user_id,
           'You have been outbid!',
-          `Someone placed a higher bid of Rp ${bidAmount.toLocaleString('id-ID')} on "${auction.jersey_title}". Place another bid now!`,
+          `Someone placed a higher bid of Rp ${normalizedBidAmount.toLocaleString('id-ID')} on "${auction.jersey_title}". Place another bid now!`,
           'outbid'
         );
       }
@@ -287,7 +304,7 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
     // Broadcast update via SSE
     SseService.broadcast('new_bid', {
       auctionId,
-      currentPrice: bidAmount,
+      currentPrice: normalizedBidAmount,
       endTime: finalEndTime,
       extended: sniperExtended,
       bids: updatedBids
@@ -296,7 +313,7 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
     return res.status(201).json({
       message: 'Bid placed successfully',
       bidId,
-      currentPrice: bidAmount,
+      currentPrice: normalizedBidAmount,
       endTime: finalEndTime,
       extended: sniperExtended
     });
