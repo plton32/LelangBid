@@ -28,6 +28,86 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+const normalizeNumber = (value: any) => {
+  if (value === undefined || value === null || value === '') return 0;
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : NaN;
+};
+
+const normalizeDateValue = (value: any) => value ? String(value) : null;
+
+const validateAuctionRequest = (
+  payload: {
+    auctionStartTime?: any;
+    auctionEndTime?: any;
+    auctionStartPrice?: any;
+    reservePrice?: any;
+  },
+  requireAll: boolean
+) => {
+  const auctionStartTime = normalizeDateValue(payload.auctionStartTime);
+  const auctionEndTime = normalizeDateValue(payload.auctionEndTime);
+  const auctionStartPrice = normalizeNumber(payload.auctionStartPrice);
+  const reservePrice = normalizeNumber(payload.reservePrice);
+
+  if (requireAll && (!auctionStartTime || !auctionEndTime || !auctionStartPrice || !reservePrice)) {
+    return {
+      error: 'Auction start date, end date, start price, and final minimum price are required',
+      values: null
+    };
+  }
+
+  if ((auctionStartTime || auctionEndTime) && (!auctionStartTime || !auctionEndTime)) {
+    return {
+      error: 'Auction start date and end date must be filled together',
+      values: null
+    };
+  }
+
+  if (!Number.isFinite(auctionStartPrice) || auctionStartPrice < 0 || !Number.isFinite(reservePrice) || reservePrice < 0) {
+    return {
+      error: 'Auction prices must be valid positive numbers',
+      values: null
+    };
+  }
+
+  if (auctionStartTime && auctionEndTime) {
+    const start = new Date(auctionStartTime);
+    const end = new Date(auctionEndTime);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return {
+        error: 'Auction start date and end date must be valid dates',
+        values: null
+      };
+    }
+
+    if (end <= start) {
+      return {
+        error: 'Auction end date must be after the start date',
+        values: null
+      };
+    }
+  }
+
+  if (reservePrice > 0 && auctionStartPrice > 0 && reservePrice < auctionStartPrice) {
+    return {
+      error: 'Final minimum price must be greater than or equal to the starting price',
+      values: null
+    };
+  }
+
+  return {
+    error: null,
+    values: {
+      auctionStartTime,
+      auctionEndTime,
+      auctionStartPrice,
+      reservePrice
+    }
+  };
+};
+
 // GET categories
 router.get('/categories', (req, res) => {
   try {
@@ -116,11 +196,37 @@ router.get('/:id', (req, res) => {
 
 // POST create jersey (seller or admin)
 router.post('/', authenticateToken, requireRole(['seller', 'admin']), upload.array('images', 5), (req: AuthRequest, res) => {
-  const { title, categoryId, playerName, clubName, leagueName, season, size, condition, jerseyType, isSigned, hasCoa, description } = req.body;
+  const {
+    title,
+    categoryId,
+    playerName,
+    clubName,
+    leagueName,
+    season,
+    size,
+    condition,
+    jerseyType,
+    isSigned,
+    hasCoa,
+    description,
+    auctionStartTime,
+    auctionEndTime,
+    auctionStartPrice,
+    reservePrice
+  } = req.body;
   const sellerId = req.user!.id;
 
   if (!title || !categoryId) {
     return res.status(400).json({ message: 'Title and Category ID are required' });
+  }
+
+  const auctionRequest = validateAuctionRequest(
+    { auctionStartTime, auctionEndTime, auctionStartPrice, reservePrice },
+    req.user!.role === 'seller'
+  );
+
+  if (auctionRequest.error || !auctionRequest.values) {
+    return res.status(400).json({ message: auctionRequest.error });
   }
 
   try {
@@ -128,8 +234,12 @@ router.post('/', authenticateToken, requireRole(['seller', 'admin']), upload.arr
     const status = req.user!.role === 'admin' ? 'verified' : 'pending_verification';
 
     const insertJersey = db.prepare(`
-      INSERT INTO jerseys (id, category_id, seller_id, title, player_name, club_name, league_name, season, size, condition, jersey_type, is_signed, has_coa, description, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO jerseys (
+        id, category_id, seller_id, title, player_name, club_name, league_name, season, size, condition,
+        jersey_type, is_signed, has_coa, description, auction_start_time, auction_end_time,
+        auction_start_price, reserve_price, status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insertJersey.run(
@@ -147,6 +257,10 @@ router.post('/', authenticateToken, requireRole(['seller', 'admin']), upload.arr
       isSigned === 'true' || isSigned === 1 ? 1 : 0,
       hasCoa === 'true' || hasCoa === 1 ? 1 : 0,
       description || null,
+      auctionRequest.values.auctionStartTime,
+      auctionRequest.values.auctionEndTime,
+      auctionRequest.values.auctionStartPrice,
+      auctionRequest.values.reservePrice,
       status
     );
 
@@ -176,18 +290,50 @@ router.post('/', authenticateToken, requireRole(['seller', 'admin']), upload.arr
 // PUT update jersey status/details
 router.put('/:id', authenticateToken, requireRole(['seller', 'admin']), (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { title, categoryId, playerName, clubName, leagueName, season, size, condition, jerseyType, isSigned, hasCoa, description, status } = req.body;
+  const {
+    title,
+    categoryId,
+    playerName,
+    clubName,
+    leagueName,
+    season,
+    size,
+    condition,
+    jerseyType,
+    isSigned,
+    hasCoa,
+    description,
+    status,
+    auctionStartTime,
+    auctionEndTime,
+    auctionStartPrice,
+    reservePrice
+  } = req.body;
   const { role, id: userId } = req.user!;
 
   try {
     // Check ownership
-    const existing = db.prepare('SELECT seller_id, status FROM jerseys WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM jerseys WHERE id = ?').get(id) as any;
     if (!existing) {
       return res.status(404).json({ message: 'Jersey not found' });
     }
 
     if (role !== 'admin' && existing.seller_id !== userId) {
       return res.status(403).json({ message: 'Forbidden: You do not own this jersey listing' });
+    }
+
+    const auctionRequest = validateAuctionRequest(
+      {
+        auctionStartTime: auctionStartTime ?? existing.auction_start_time,
+        auctionEndTime: auctionEndTime ?? existing.auction_end_time,
+        auctionStartPrice: auctionStartPrice ?? existing.auction_start_price,
+        reservePrice: reservePrice ?? existing.reserve_price
+      },
+      false
+    );
+
+    if (auctionRequest.error || !auctionRequest.values) {
+      return res.status(400).json({ message: auctionRequest.error });
     }
 
     // Admins can change status, sellers cannot change status once submitted for verification
@@ -200,7 +346,9 @@ router.put('/:id', authenticateToken, requireRole(['seller', 'admin']), (req: Au
 
     const updateQuery = `
       UPDATE jerseys
-      SET title = ?, category_id = ?, player_name = ?, club_name = ?, league_name = ?, season = ?, size = ?, condition = ?, jersey_type = ?, is_signed = ?, has_coa = ?, description = ?, status = ?
+      SET title = ?, category_id = ?, player_name = ?, club_name = ?, league_name = ?, season = ?, size = ?, condition = ?,
+          jersey_type = ?, is_signed = ?, has_coa = ?, description = ?, auction_start_time = ?, auction_end_time = ?,
+          auction_start_price = ?, reserve_price = ?, status = ?
       WHERE id = ?
     `;
 
@@ -217,6 +365,10 @@ router.put('/:id', authenticateToken, requireRole(['seller', 'admin']), (req: Au
       isSigned === 'true' || isSigned === 1 ? 1 : 0,
       hasCoa === 'true' || hasCoa === 1 ? 1 : 0,
       description || null,
+      auctionRequest.values.auctionStartTime,
+      auctionRequest.values.auctionEndTime,
+      auctionRequest.values.auctionStartPrice,
+      auctionRequest.values.reservePrice,
       nextStatus,
       id
     );

@@ -6,6 +6,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
 import { 
   LayoutDashboard, Users, Tag, Gavel, 
   CreditCard, Truck, Award, FileSpreadsheet,
@@ -48,6 +49,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [selectedJerseyId, setSelectedJerseyId] = useState('');
   const [startPrice, setStartPrice] = useState('');
   const [minIncrement, setMinIncrement] = useState('50000');
+  const [reservePrice, setReservePrice] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
@@ -138,6 +140,31 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [location.pathname]);
 
+  const toDateTimeLocalValue = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+
+  useEffect(() => {
+    if (!createAuctionOpen) return;
+
+    const selected = verifiedJerseys.find(jersey => jersey.id === selectedJerseyId);
+    if (!selected) {
+      setStartPrice('');
+      setReservePrice('');
+      setStartTime('');
+      setEndTime('');
+      return;
+    }
+
+    setStartPrice(selected.auction_start_price ? String(selected.auction_start_price) : '');
+    setReservePrice(selected.reserve_price ? String(selected.reserve_price) : '');
+    setStartTime(toDateTimeLocalValue(selected.auction_start_time));
+    setEndTime(toDateTimeLocalValue(selected.auction_end_time));
+  }, [selectedJerseyId, verifiedJerseys, createAuctionOpen]);
+
   // Actions handlers
   const handleUserRoleChange = async (userId: string, role: string) => {
     try {
@@ -182,8 +209,38 @@ export const AdminDashboardPage: React.FC = () => {
 
   const handleCreateAuctionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedJerseyId || !startPrice || !startTime || !endTime) {
+    if (!selectedJerseyId || !startPrice || !reservePrice || !startTime || !endTime) {
       alert('Please fill in all fields');
+      return;
+    }
+
+    const parsedStartPrice = Number(startPrice);
+    const parsedReservePrice = Number(reservePrice);
+    const parsedIncrement = Number(minIncrement);
+    const parsedStartTime = new Date(startTime);
+    const parsedEndTime = new Date(endTime);
+
+    if (
+      !Number.isFinite(parsedStartPrice) ||
+      !Number.isFinite(parsedReservePrice) ||
+      !Number.isFinite(parsedIncrement) ||
+      parsedStartPrice <= 0 ||
+      parsedReservePrice <= 0 ||
+      parsedIncrement <= 0 ||
+      Number.isNaN(parsedStartTime.getTime()) ||
+      Number.isNaN(parsedEndTime.getTime())
+    ) {
+      alert('Auction dates and prices must be valid');
+      return;
+    }
+
+    if (parsedEndTime <= parsedStartTime) {
+      alert('End date must be after start date');
+      return;
+    }
+
+    if (parsedReservePrice < parsedStartPrice) {
+      alert('Final minimum price must be greater than or equal to starting price');
       return;
     }
 
@@ -191,8 +248,9 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       await api.post('/auctions', {
         jerseyId: selectedJerseyId,
-        startPrice: Number(startPrice),
-        minIncrement: Number(minIncrement),
+        startPrice: parsedStartPrice,
+        minIncrement: parsedIncrement,
+        reservePrice: parsedReservePrice,
         startTime,
         endTime
       });
@@ -200,6 +258,7 @@ export const AdminDashboardPage: React.FC = () => {
       setCreateAuctionOpen(false);
       setSelectedJerseyId('');
       setStartPrice('');
+      setReservePrice('');
       setStartTime('');
       setEndTime('');
       fetchAdminData();
@@ -333,9 +392,21 @@ export const AdminDashboardPage: React.FC = () => {
     return url ? (url.startsWith('http') ? url : `http://localhost:5000${url}`) : 'https://images.unsplash.com/photo-1540747737956-37872404a8c1?q=80&w=600&auto=format&fit=crop';
   };
 
-  const formatPrice = (price: number) => {
-    return `Rp ${price.toLocaleString('id-ID')}`;
+  const formatPrice = (price: number | string | null | undefined) => {
+    return `Rp ${Number(price || 0).toLocaleString('id-ID')}`;
   };
+
+  const adminTabs: Array<{ id: AdminTab; label: string; path: string; icon: React.ReactNode }> = [
+    { id: 'dashboard', label: 'Stats Overview', path: '/admin', icon: <LayoutDashboard size={14} /> },
+    { id: 'users', label: 'Users', path: '/admin/users', icon: <Users size={14} /> },
+    { id: 'seller-applications', label: 'Seller Requests', path: '/admin/seller-applications', icon: <Store size={14} /> },
+    { id: 'verify-jerseys', label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={14} /> },
+    { id: 'auctions', label: 'Auctions', path: '/admin/auctions', icon: <Gavel size={14} /> },
+    { id: 'deposits', label: 'Deposits', path: '/admin/deposits', icon: <Wallet size={14} /> },
+    { id: 'payments', label: 'Verify Payments', path: '/admin/payments', icon: <CreditCard size={14} /> },
+    { id: 'shipments', label: 'Shipments', path: '/admin/shipments', icon: <Truck size={14} /> },
+    { id: 'coa', label: 'COA Certs', path: '/admin/certificates', icon: <Award size={14} /> }
+  ];
 
   if (loading) {
     return (
@@ -398,36 +469,17 @@ export const AdminDashboardPage: React.FC = () => {
       )}
 
       {/* Main Tabs Navigation Bar */}
-      <div className="flex bg-brand-navy border border-slate-800 p-1 rounded-2xl overflow-x-auto max-w-full space-x-1">
-        {[
-          { id: 'dashboard', label: 'Stats Overview', path: '/admin', icon: <LayoutDashboard size={14} /> },
-          { id: 'users', label: 'Users', path: '/admin/users', icon: <Users size={14} /> },
-          { id: 'seller-applications', label: 'Seller Requests', path: '/admin/seller-applications', icon: <Store size={14} /> },
-          { id: 'verify-jerseys', label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={14} /> },
-          { id: 'auctions', label: 'Auctions', path: '/admin/auctions', icon: <Gavel size={14} /> },
-          { id: 'deposits', label: 'Deposits', path: '/admin/deposits', icon: <Wallet size={14} /> },
-          { id: 'payments', label: 'Verify Payments', path: '/admin/payments', icon: <CreditCard size={14} /> },
-          { id: 'shipments', label: 'Shipments', path: '/admin/shipments', icon: <Truck size={14} /> },
-          { id: 'coa', label: 'COA Certs', path: '/admin/certificates', icon: <Award size={14} /> },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id as AdminTab);
-              setLoading(true);
-              navigate(tab.path);
-            }}
-            className={`flex items-center space-x-2 shrink-0 py-2.5 px-4 rounded-xl font-bold uppercase transition-all duration-200 ${
-              activeTab === tab.id 
-                ? 'gold-gradient-bg text-brand-navy font-extrabold shadow-sm' 
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-navy-light/10'
-            }`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
+      <ScrollableTabBar
+        items={adminTabs}
+        activeId={activeTab}
+        onChange={(tabId) => {
+          const tab = adminTabs.find(item => item.id === tabId);
+          if (!tab) return;
+          setActiveTab(tab.id);
+          setLoading(true);
+          navigate(tab.path);
+        }}
+      />
 
       {/* 1. USERS MANAGEMENT TAB */}
       {activeTab === 'users' && (
@@ -581,6 +633,12 @@ export const AdminDashboardPage: React.FC = () => {
                       <p className="text-[10px] text-slate-500 font-mono mt-0.5 uppercase">
                         Specs: Size {jersey.size} | Cond: {jersey.condition} | Type: {jersey.jersey_type?.replace(/-/g, ' ')}
                       </p>
+                      <p className="text-[10px] text-slate-500 font-mono mt-1">
+                        Auction: {jersey.auction_start_time ? new Date(jersey.auction_start_time).toLocaleString('id-ID') : '-'} - {jersey.auction_end_time ? new Date(jersey.auction_end_time).toLocaleString('id-ID') : '-'}
+                      </p>
+                      <p className="text-[10px] text-brand-gold font-mono font-black mt-0.5">
+                        Start {formatPrice(jersey.auction_start_price)} | Minimum {formatPrice(jersey.reserve_price)}
+                      </p>
                     </div>
                   </div>
 
@@ -649,6 +707,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 font-mono font-bold">
                       <span className="block text-[10px] text-slate-500">Current: {formatPrice(a.current_price)}</span>
+                      <span className="block text-[9px] text-brand-gold">Minimum: {formatPrice(a.reserve_price)}</span>
                       <span className="block text-[9px] text-slate-650">Inc: +{formatPrice(a.min_increment)}</span>
                     </td>
                     <td className="py-3 px-4 text-[10px] font-bold">
@@ -656,7 +715,7 @@ export const AdminDashboardPage: React.FC = () => {
                       <span className="block text-slate-400">End: {new Date(a.end_time).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <Badge variant={a.status}>{a.status}</Badge>
+                      <Badge variant={a.status}>{String(a.status).replace(/_/g, ' ')}</Badge>
                     </td>
                   </tr>
                 ))}
@@ -998,7 +1057,7 @@ export const AdminDashboardPage: React.FC = () => {
               <option value="">Select Verified Jersey</option>
               {verifiedJerseys.map(j => (
                 <option key={j.id} value={j.id}>
-                  {j.title} (Seller: {j.seller_name})
+                  {j.title} (Seller: {j.seller_name} | Start: {formatPrice(j.auction_start_price)} | Minimum: {formatPrice(j.reserve_price)})
                 </option>
               ))}
             </select>
@@ -1022,6 +1081,15 @@ export const AdminDashboardPage: React.FC = () => {
               required
             />
           </div>
+
+          <Input
+            label="Final Minimum Price (Rp) *"
+            type="number"
+            placeholder="e.g. 7500000"
+            value={reservePrice}
+            onChange={(e) => setReservePrice(e.target.value)}
+            required
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <Input

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import AuctionCard, { AuctionData } from '../../components/auction/AuctionCard';
 import Badge from '../../components/ui/Badge';
+import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
 import { Gavel, Filter } from 'lucide-react';
 
 interface Category {
@@ -85,8 +86,11 @@ export const AuctionListPage: React.FC = () => {
     { label: 'All Catalog', value: '' },
     { label: 'Live Now', value: 'live' },
     { label: 'Upcoming Drops', value: 'upcoming' },
+    { label: 'Under Review', value: 'negotiation' },
+    { label: 'Not Successful', value: 'failed' },
     { label: 'Closed/Ended', value: 'closed' }
   ];
+  const statusTabs = tabs.map(tab => ({ id: tab.value, label: tab.label }));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -117,24 +121,12 @@ export const AuctionListPage: React.FC = () => {
       </div>
 
       {/* Tabs list */}
-      <div className="flex space-x-1.5 bg-brand-navy border border-slate-850 p-1 rounded-2xl mb-8 overflow-x-auto max-w-xl">
-        {tabs.map(tab => {
-          const isActive = statusParam === tab.value;
-          return (
-            <button
-              key={tab.label}
-              onClick={() => handleStatusTab(tab.value)}
-              className={`flex-1 shrink-0 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-                isActive
-                  ? 'gold-gradient-bg text-brand-navy font-extrabold shadow-premium-glow'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-navy-light/20'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <ScrollableTabBar
+        items={statusTabs}
+        activeId={statusParam}
+        onChange={handleStatusTab}
+        className="mb-8 max-w-xl"
+      />
 
       {/* Cards list */}
       {loading ? (

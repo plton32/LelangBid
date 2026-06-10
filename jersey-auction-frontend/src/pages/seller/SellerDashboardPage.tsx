@@ -6,9 +6,11 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
 import { Tag, PlusCircle, LayoutDashboard, ShoppingBag, Sparkles, Plus, Upload, Gavel } from 'lucide-react';
 
 type SellerTab = 'dashboard' | 'my-jerseys' | 'add-jersey' | 'my-auctions' | 'sales';
+type AuctionStatus = 'live' | 'upcoming' | 'closed' | 'negotiation' | 'failed';
 
 const getSellerTabFromPath = (pathname: string): SellerTab => {
   if (pathname.startsWith('/seller/add-jersey')) return 'add-jersey';
@@ -33,6 +35,10 @@ interface JerseyData {
   size: string;
   condition: string;
   jersey_type: string;
+  auction_start_time?: string | null;
+  auction_end_time?: string | null;
+  auction_start_price?: number | null;
+  reserve_price?: number | null;
   status: 'draft' | 'pending_verification' | 'verified' | 'rejected';
   images: any[];
 }
@@ -45,9 +51,10 @@ interface AuctionData {
   start_price: number;
   current_price: number;
   final_price?: number | null;
+  reserve_price?: number | null;
   start_time: string;
   end_time: string;
-  status: 'live' | 'upcoming' | 'closed';
+  status: AuctionStatus;
 }
 
 interface SaleData {
@@ -87,6 +94,10 @@ export const SellerDashboardPage: React.FC = () => {
   const [isSigned, setIsSigned] = useState(false);
   const [hasCoa, setHasCoa] = useState(false);
   const [description, setDescription] = useState('');
+  const [auctionStartTime, setAuctionStartTime] = useState('');
+  const [auctionEndTime, setAuctionEndTime] = useState('');
+  const [auctionStartPrice, setAuctionStartPrice] = useState('');
+  const [reservePrice, setReservePrice] = useState('');
   const [imageFiles, setImageFiles] = useState<FileList | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
@@ -135,6 +146,38 @@ export const SellerDashboardPage: React.FC = () => {
       return;
     }
 
+    const parsedStartPrice = Number(auctionStartPrice);
+    const parsedReservePrice = Number(reservePrice);
+    const parsedStartTime = new Date(auctionStartTime);
+    const parsedEndTime = new Date(auctionEndTime);
+
+    if (!auctionStartTime || !auctionEndTime || !auctionStartPrice || !reservePrice) {
+      setError('Tanggal mulai lelang, berakhir lelang, harga awal lelang, dan harga akhir minimum wajib diisi');
+      return;
+    }
+
+    if (
+      Number.isNaN(parsedStartTime.getTime()) ||
+      Number.isNaN(parsedEndTime.getTime()) ||
+      !Number.isFinite(parsedStartPrice) ||
+      !Number.isFinite(parsedReservePrice) ||
+      parsedStartPrice <= 0 ||
+      parsedReservePrice <= 0
+    ) {
+      setError('Tanggal dan harga lelang harus valid');
+      return;
+    }
+
+    if (parsedEndTime <= parsedStartTime) {
+      setError('Berakhir lelang harus setelah tanggal mulai lelang');
+      return;
+    }
+
+    if (parsedReservePrice < parsedStartPrice) {
+      setError('Harga akhir minimum harus lebih besar atau sama dengan harga awal lelang');
+      return;
+    }
+
     setFormLoading(true);
     setError('');
     setSuccess('');
@@ -153,6 +196,10 @@ export const SellerDashboardPage: React.FC = () => {
       formData.append('isSigned', String(isSigned));
       formData.append('hasCoa', String(hasCoa));
       formData.append('description', description);
+      formData.append('auctionStartTime', auctionStartTime);
+      formData.append('auctionEndTime', auctionEndTime);
+      formData.append('auctionStartPrice', String(parsedStartPrice));
+      formData.append('reservePrice', String(parsedReservePrice));
 
       if (imageFiles) {
         for (let i = 0; i < imageFiles.length; i++) {
@@ -176,6 +223,10 @@ export const SellerDashboardPage: React.FC = () => {
       setLeagueName('');
       setSeason('');
       setDescription('');
+      setAuctionStartTime('');
+      setAuctionEndTime('');
+      setAuctionStartPrice('');
+      setReservePrice('');
       setImageFiles(null);
       setIsSigned(false);
       setHasCoa(false);
@@ -200,6 +251,29 @@ export const SellerDashboardPage: React.FC = () => {
     if (status === 'pending_verification') return 'warning';
     if (status === 'rejected') return 'danger';
     return 'closed';
+  };
+
+  const formatStatusLabel = (status: string) => {
+    if (status === 'negotiation') return 'negotiation';
+    if (status === 'failed') return 'not successful';
+    return status.replace(/_/g, ' ');
+  };
+
+  const handleNegotiationDecision = async (auctionId: string, decision: 'accepted' | 'rejected') => {
+    const confirmed = window.confirm(
+      decision === 'accepted'
+        ? 'Terima harga bid tertinggi di bawah harga akhir minimum dan lanjutkan transaksi?'
+        : 'Tolak harga bid tertinggi dan tandai lelang tidak berhasil?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await api.patch(`/auctions/${auctionId}/seller-decision`, { decision });
+      fetchSellerData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error saving auction decision');
+    }
   };
 
   const defaultPlaceholder = 'https://images.unsplash.com/photo-1540747737956-37872404a8c1?q=80&w=600&auto=format&fit=crop';
@@ -228,12 +302,28 @@ export const SellerDashboardPage: React.FC = () => {
       return formatPrice(auction.final_price);
     }
 
+    if (auction.status === 'negotiation') {
+      return `${formatPrice(auction.current_price)} (menunggu seller)`;
+    }
+
+    if (auction.status === 'failed') {
+      return 'Tidak berhasil';
+    }
+
     if (auction.status === 'closed') {
       return formatPrice(auction.current_price);
     }
 
     return 'Belum berakhir';
   };
+
+  const sellerTabs: Array<{ id: SellerTab; label: string; path: string; icon?: React.ReactNode }> = [
+    { id: 'dashboard', label: 'Dashboard', path: '/seller' },
+    { id: 'my-jerseys', label: `My Jerseys (${jerseys.length})`, path: '/seller/jerseys' },
+    { id: 'my-auctions', label: `Auctions (${auctions.length})`, path: '/seller/auctions' },
+    { id: 'sales', label: `Sales (${sales.length})`, path: '/seller/sales' },
+    { id: 'add-jersey', label: 'Add Jersey', path: '/seller/add-jersey', icon: <Plus size={12} /> }
+  ];
 
   return (
     <div className="space-y-8 text-xs font-sans">
@@ -250,26 +340,15 @@ export const SellerDashboardPage: React.FC = () => {
         </div>
 
         {/* Actions shortcut tabs */}
-        <div className="flex space-x-2 bg-brand-navy p-1 rounded-xl border border-slate-800 shrink-0">
-          {[
-            { id: 'dashboard', label: 'Dashboard', path: '/seller' },
-            { id: 'my-jerseys', label: `My Jerseys (${jerseys.length})`, path: '/seller/jerseys' },
-            { id: 'my-auctions', label: `Auctions (${auctions.length})`, path: '/seller/auctions' },
-            { id: 'sales', label: `Sales (${sales.length})`, path: '/seller/sales' },
-            { id: 'add-jersey', label: 'Add Jersey', path: '/seller/add-jersey', icon: <Plus size={12} /> },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => goToTab(tab.id as SellerTab, tab.path)}
-              className={`py-2 px-4 rounded-lg font-bold uppercase transition-all flex items-center space-x-1 ${
-                activeTab === tab.id ? 'gold-gradient-bg text-brand-navy shadow-sm' : 'text-slate-455 hover:text-slate-200'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        <ScrollableTabBar
+          items={sellerTabs}
+          activeId={activeTab}
+          onChange={(tabId) => {
+            const tab = sellerTabs.find(item => item.id === tabId);
+            if (tab) goToTab(tab.id, tab.path);
+          }}
+          className="w-full shrink-0 rounded-xl md:w-auto md:max-w-[min(100%,48rem)]"
+        />
       </div>
 
       {/* RENDER DASHBOARD PAGE */}
@@ -324,6 +403,7 @@ export const SellerDashboardPage: React.FC = () => {
                     <th className="pb-3 pr-4">Jersey Details</th>
                     <th className="pb-3 px-4">Category</th>
                     <th className="pb-3 px-4">Specs</th>
+                    <th className="pb-3 px-4">Permintaan Lelang</th>
                     <th className="pb-3 px-4">Status</th>
                   </tr>
                 </thead>
@@ -344,6 +424,12 @@ export const SellerDashboardPage: React.FC = () => {
                       <td className="py-4 px-4 font-semibold text-brand-accent">{jersey.category_name}</td>
                       <td className="py-4 px-4 text-slate-400">
                         {jersey.player_name || '-'} | {jersey.club_name || '-'} ({jersey.season || '-'}) | Size: {jersey.size}
+                      </td>
+                      <td className="py-4 px-4 text-[10px] text-slate-400 min-w-[220px]">
+                        <span className="block font-semibold">Mulai: {formatDateTime(jersey.auction_start_time)}</span>
+                        <span className="block font-semibold">Berakhir: {formatDateTime(jersey.auction_end_time)}</span>
+                        <span className="block font-mono text-brand-gold font-black mt-1">Awal: {formatPrice(jersey.auction_start_price)}</span>
+                        <span className="block font-mono text-slate-300 font-black">Minimum: {formatPrice(jersey.reserve_price)}</span>
                       </td>
                       <td className="py-4 px-4">
                         <Badge variant={getStatusVariant(jersey.status)}>
@@ -380,8 +466,10 @@ export const SellerDashboardPage: React.FC = () => {
                     <th className="pb-3 px-4">Tanggal Mulai Lelang</th>
                     <th className="pb-3 px-4">Berakhir Lelang</th>
                     <th className="pb-3 px-4">Harga Awal Lelang</th>
-                    <th className="pb-3 px-4">Harga Akhir Lelang</th>
+                    <th className="pb-3 px-4">Harga Akhir Minimum</th>
+                    <th className="pb-3 px-4">Hasil Akhir</th>
                     <th className="pb-3 px-4">Status</th>
+                    <th className="pb-3 px-4">Keputusan</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -406,11 +494,36 @@ export const SellerDashboardPage: React.FC = () => {
                       <td className="py-4 px-4 font-mono font-bold text-brand-gold">
                         {formatPrice(auction.start_price)}
                       </td>
+                      <td className="py-4 px-4 font-mono font-bold text-slate-300 whitespace-nowrap">
+                        {formatPrice(auction.reserve_price)}
+                      </td>
                       <td className="py-4 px-4 font-mono font-bold text-slate-200 whitespace-nowrap">
                         {formatAuctionFinalPrice(auction)}
                       </td>
                       <td className="py-4 px-4">
-                        <Badge variant={auction.status}>{auction.status}</Badge>
+                        <Badge variant={auction.status}>{formatStatusLabel(auction.status)}</Badge>
+                      </td>
+                      <td className="py-4 px-4">
+                        {auction.status === 'negotiation' ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleNegotiationDecision(auction.id, 'accepted')}
+                              className="px-3 py-1.5 rounded-lg bg-brand-accent-green/15 text-brand-accent-green hover:bg-brand-accent-green/30 font-black text-[9px] uppercase tracking-wider"
+                            >
+                              Terima
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNegotiationDecision(auction.id, 'rejected')}
+                              className="px-3 py-1.5 rounded-lg bg-brand-accent-red/15 text-brand-accent-red hover:bg-brand-accent-red/30 font-black text-[9px] uppercase tracking-wider"
+                            >
+                              Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-600 font-semibold">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -649,6 +762,56 @@ export const SellerDashboardPage: React.FC = () => {
                 rows={4}
                 className="w-full px-4 py-3 bg-brand-navy-light text-slate-100 placeholder-slate-650 rounded-xl border border-slate-700/60 focus:outline-none focus:border-brand-gold/60 focus:ring-1 focus:ring-brand-gold/60"
               />
+            </div>
+
+            <div className="pt-3 border-t border-slate-800">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 mb-4">
+                Auction Request
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Tanggal Mulai Lelang *"
+                  type="datetime-local"
+                  value={auctionStartTime}
+                  onChange={(e) => setAuctionStartTime(e.target.value)}
+                  disabled={formLoading}
+                  required
+                />
+                <Input
+                  label="Berakhir Lelang *"
+                  type="datetime-local"
+                  value={auctionEndTime}
+                  onChange={(e) => setAuctionEndTime(e.target.value)}
+                  disabled={formLoading}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Harga Awal Lelang (Rp) *"
+                  type="number"
+                  min="1"
+                  step="1000"
+                  placeholder="e.g. 5000000"
+                  value={auctionStartPrice}
+                  onChange={(e) => setAuctionStartPrice(e.target.value)}
+                  disabled={formLoading}
+                  required
+                />
+                <Input
+                  label="Harga Akhir Minimum (Rp) *"
+                  type="number"
+                  min="1"
+                  step="1000"
+                  placeholder="e.g. 7500000"
+                  value={reservePrice}
+                  onChange={(e) => setReservePrice(e.target.value)}
+                  disabled={formLoading}
+                  required
+                />
+              </div>
             </div>
 
             <div className="flex flex-col">

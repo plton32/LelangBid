@@ -59,6 +59,10 @@ export function initDb() {
       is_signed INTEGER DEFAULT 0,
       has_coa INTEGER DEFAULT 0,
       description TEXT,
+      auction_start_time TEXT,
+      auction_end_time TEXT,
+      auction_start_price REAL DEFAULT 0,
+      reserve_price REAL DEFAULT 0,
       status TEXT DEFAULT 'draft',
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
@@ -77,6 +81,7 @@ export function initDb() {
       start_price REAL NOT NULL,
       current_price REAL DEFAULT 0,
       min_increment REAL DEFAULT 50000,
+      reserve_price REAL DEFAULT 0,
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       status TEXT DEFAULT 'upcoming',
@@ -185,6 +190,11 @@ export function initDb() {
   ensureColumn('deposits', 'admin_note', 'TEXT');
   ensureColumn('deposits', 'verified_by', 'TEXT REFERENCES users(id)');
   ensureColumn('deposits', 'verified_at', 'TEXT');
+  ensureColumn('jerseys', 'auction_start_time', 'TEXT');
+  ensureColumn('jerseys', 'auction_end_time', 'TEXT');
+  ensureColumn('jerseys', 'auction_start_price', 'REAL DEFAULT 0');
+  ensureColumn('jerseys', 'reserve_price', 'REAL DEFAULT 0');
+  ensureColumn('auctions', 'reserve_price', 'REAL DEFAULT 0');
 
   // Seed default data if users table is empty
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;

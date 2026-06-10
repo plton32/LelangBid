@@ -37,6 +37,10 @@ type Jersey = {
   is_signed: number;
   has_coa: number;
   description: string;
+  auction_start_time?: string | null;
+  auction_end_time?: string | null;
+  auction_start_price?: number | null;
+  reserve_price?: number | null;
   status: 'draft' | 'pending_verification' | 'verified' | 'rejected';
   created_at: string;
 };
@@ -54,9 +58,10 @@ type Auction = {
   start_price: number;
   current_price: number;
   min_increment: number;
+  reserve_price?: number | null;
   start_time: string;
   end_time: string;
-  status: 'live' | 'upcoming' | 'closed';
+  status: 'live' | 'upcoming' | 'closed' | 'negotiation' | 'failed';
   winner_user_id: string | null;
   created_at: string;
 };
@@ -230,6 +235,10 @@ const initialState = (): DemoState => {
     is_signed,
     has_coa,
     description,
+    auction_start_time: iso(12 * hour),
+    auction_end_time: iso(3 * day),
+    auction_start_price: 1000000,
+    reserve_price: 1500000,
     status,
     created_at: iso(-8 * day)
   });
@@ -279,6 +288,7 @@ const initialState = (): DemoState => {
     start_price,
     current_price,
     min_increment,
+    reserve_price: Math.max(start_price, current_price),
     start_time,
     end_time,
     status,
@@ -403,6 +413,17 @@ const hydrateState = (state: DemoState): DemoState => ({
   users: state.users.map(user => ({
     ...user,
     deposit_balance: Number((user as any).deposit_balance || 0)
+  })),
+  jerseys: state.jerseys.map(jersey => ({
+    ...jersey,
+    auction_start_time: jersey.auction_start_time || iso(12 * hour),
+    auction_end_time: jersey.auction_end_time || iso(3 * day),
+    auction_start_price: Number(jersey.auction_start_price || 1000000),
+    reserve_price: Number(jersey.reserve_price || Math.max(Number(jersey.auction_start_price || 1000000), 1500000))
+  })),
+  auctions: state.auctions.map(auction => ({
+    ...auction,
+    reserve_price: Number(auction.reserve_price || Math.max(Number(auction.start_price || 0), Number(auction.current_price || 0)))
   })),
   deposits: (state.deposits || []) as DepositTransaction[],
   sellerApplications: (state.sellerApplications || []) as SellerApplication[],
@@ -913,6 +934,10 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
         is_signed: body.isSigned === 'true' ? 1 : 0,
         has_coa: body.hasCoa === 'true' ? 1 : 0,
         description: String(body.description || ''),
+        auction_start_time: String(body.auctionStartTime || ''),
+        auction_end_time: String(body.auctionEndTime || ''),
+        auction_start_price: Number(body.auctionStartPrice || 0),
+        reserve_price: Number(body.reservePrice || 0),
         status: user.role === 'admin' ? 'verified' : 'pending_verification',
         created_at: new Date().toISOString()
       };
@@ -947,6 +972,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       if (!jersey) return errorResponse(config, 'Jersey not found', 404);
       const auctionId = nextId('auction');
       const startPrice = Number(body.startPrice);
+      const reservePrice = Number(body.reservePrice || jersey.reserve_price || 0);
       const start = new Date(body.startTime);
       const auction: Auction = {
         id: auctionId,
@@ -954,6 +980,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
         start_price: startPrice,
         current_price: startPrice,
         min_increment: Number(body.minIncrement || 50000),
+        reserve_price: reservePrice,
         start_time: body.startTime,
         end_time: body.endTime,
         status: start <= new Date() ? 'live' : 'upcoming',
@@ -963,6 +990,58 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       state.auctions.push(auction);
       saveState(state);
       return response(config, { message: 'Auction created successfully', auctionId, status: auction.status }, 201);
+    }
+
+    const sellerDecisionMatch = path.match(/^\/auctions\/([^/]+)\/seller-decision$/);
+    if (method === 'patch' && sellerDecisionMatch) {
+      const user = requireUser(state, config);
+      requireRole(user, ['seller', 'admin']);
+      const auction = state.auctions.find(a => a.id === sellerDecisionMatch[1]);
+      if (!auction) return errorResponse(config, 'Auction not found', 404);
+      const jersey = state.jerseys.find(j => j.id === auction.jersey_id);
+      if (user.role === 'seller' && jersey?.seller_id !== user.id) return errorResponse(config, 'Forbidden: This is not your auction', 403);
+      if (auction.status !== 'negotiation') return errorResponse(config, `Auction is not waiting for seller negotiation. Current status: ${auction.status}`, 400);
+      if (!['accepted', 'rejected'].includes(body.decision)) return errorResponse(config, 'Decision must be accepted or rejected', 400);
+
+      const highestBid = [...state.bids]
+        .filter(bid => bid.auction_id === auction.id)
+        .sort((a, b) => b.bid_amount - a.bid_amount)[0];
+
+      if (!highestBid) {
+        auction.status = 'failed';
+        auction.winner_user_id = null;
+        saveState(state);
+        return response(config, { message: 'Auction marked as failed because there were no bids', status: auction.status });
+      }
+
+      if (body.decision === 'accepted') {
+        auction.status = 'closed';
+        auction.winner_user_id = highestBid.user_id;
+        auction.current_price = highestBid.bid_amount;
+
+        if (!state.winners.some(winner => winner.auction_id === auction.id)) {
+          state.winners.push({
+            id: nextId('winner'),
+            auction_id: auction.id,
+            user_id: highestBid.user_id,
+            final_price: highestBid.bid_amount,
+            status: 'waiting_payment',
+            payment_deadline: iso(24 * hour),
+            created_at: new Date().toISOString()
+          });
+        }
+      } else {
+        auction.status = 'failed';
+        auction.winner_user_id = null;
+      }
+
+      saveState(state);
+      return response(config, {
+        message: body.decision === 'accepted'
+          ? 'Seller accepted the negotiated price. Auction is successful.'
+          : 'Seller rejected the negotiated price. Auction is not successful.',
+        status: auction.status
+      });
     }
 
     const bidMatch = path.match(/^\/auctions\/([^/]+)\/bid$/);

@@ -123,7 +123,7 @@ router.get('/:id', (req, res) => {
 
 // POST create auction (admin only)
 router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
-  const { jerseyId, startPrice, minIncrement, startTime, endTime } = req.body;
+  const { jerseyId, startPrice, minIncrement, startTime, endTime, reservePrice } = req.body;
 
   if (!jerseyId || !startPrice || !startTime || !endTime) {
     return res.status(400).json({ message: 'Jersey ID, start price, start time, and end time are required' });
@@ -131,7 +131,11 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
 
   try {
     // Validate jersey is verified and not already in an active auction
-    const jersey = db.prepare('SELECT status FROM jerseys WHERE id = ?').get(jerseyId) as any;
+    const jersey = db.prepare(`
+      SELECT status, auction_start_price, reserve_price
+      FROM jerseys
+      WHERE id = ?
+    `).get(jerseyId) as any;
     if (!jersey) {
       return res.status(404).json({ message: 'Jersey not found' });
     }
@@ -140,16 +144,46 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
     }
 
     const activeAuction = db.prepare(`
-      SELECT id FROM auctions WHERE jersey_id = ? AND status IN ('upcoming', 'live')
+      SELECT id FROM auctions WHERE jersey_id = ? AND status IN ('upcoming', 'live', 'negotiation')
     `).get(jerseyId);
 
     if (activeAuction) {
       return res.status(400).json({ message: 'This jersey is already in an active or upcoming auction' });
     }
 
+    const normalizedStartPrice = Number(startPrice);
+    const normalizedReservePrice = reservePrice !== undefined && reservePrice !== null && reservePrice !== ''
+      ? Number(reservePrice)
+      : Number(jersey.reserve_price || 0);
+    const normalizedMinIncrement = Number(minIncrement || 50000);
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (
+      !Number.isFinite(normalizedStartPrice) ||
+      normalizedStartPrice <= 0 ||
+      !Number.isFinite(normalizedReservePrice) ||
+      normalizedReservePrice < 0 ||
+      !Number.isFinite(normalizedMinIncrement) ||
+      normalizedMinIncrement <= 0
+    ) {
+      return res.status(400).json({ message: 'Auction prices and increment must be valid positive numbers' });
+    }
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ message: 'Start time and end time must be valid dates' });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({ message: 'End time must be after start time' });
+    }
+
+    if (normalizedReservePrice > 0 && normalizedReservePrice < normalizedStartPrice) {
+      return res.status(400).json({ message: 'Final minimum price must be greater than or equal to the starting price' });
+    }
+
     const auctionId = randomUUID();
     const now = new Date();
-    const start = new Date(startTime);
     let initialStatus = 'upcoming';
 
     if (start <= now) {
@@ -157,14 +191,15 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
     }
 
     db.prepare(`
-      INSERT INTO auctions (id, jersey_id, start_price, current_price, min_increment, start_time, end_time, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO auctions (id, jersey_id, start_price, current_price, min_increment, reserve_price, start_time, end_time, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       auctionId,
       jerseyId,
-      startPrice,
-      startPrice, // current_price initially equal to start_price
-      minIncrement || 50000,
+      normalizedStartPrice,
+      normalizedStartPrice, // current_price initially equal to start_price
+      normalizedMinIncrement,
+      normalizedReservePrice,
       startTime,
       endTime,
       initialStatus
@@ -174,6 +209,112 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
   } catch (error) {
     console.error('Error creating auction:', error);
     return res.status(500).json({ message: 'Error creating auction' });
+  }
+});
+
+// PATCH seller decision after a reserve-price negotiation
+router.patch('/:id/seller-decision', authenticateToken, requireRole(['seller', 'admin']), (req: AuthRequest, res) => {
+  const { id: auctionId } = req.params;
+  const { decision } = req.body;
+  const userId = req.user!.id;
+  const role = req.user!.role;
+
+  if (!['accepted', 'rejected'].includes(decision)) {
+    return res.status(400).json({ message: 'Decision must be accepted or rejected' });
+  }
+
+  try {
+    const auction = db.prepare(`
+      SELECT a.*, j.title as jersey_title, j.seller_id
+      FROM auctions a
+      LEFT JOIN jerseys j ON a.jersey_id = j.id
+      WHERE a.id = ?
+    `).get(auctionId) as any;
+
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found' });
+    }
+
+    if (role === 'seller' && auction.seller_id !== userId) {
+      return res.status(403).json({ message: 'Forbidden: This is not your auction' });
+    }
+
+    if (auction.status !== 'negotiation') {
+      return res.status(400).json({ message: `Auction is not waiting for seller negotiation. Current status: ${auction.status}` });
+    }
+
+    const highestBid = db.prepare(`
+      SELECT user_id, bid_amount
+      FROM bids
+      WHERE auction_id = ?
+      ORDER BY bid_amount DESC
+      LIMIT 1
+    `).get(auctionId) as any;
+
+    if (!highestBid) {
+      db.prepare("UPDATE auctions SET status = 'failed', winner_user_id = NULL WHERE id = ?").run(auctionId);
+      return res.json({ message: 'Auction marked as failed because there were no bids', status: 'failed' });
+    }
+
+    if (decision === 'accepted') {
+      const winnerId = randomUUID();
+      const paymentDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const existingWinner = db.prepare('SELECT id FROM auction_winners WHERE auction_id = ?').get(auctionId) as any;
+
+      db.prepare("UPDATE auctions SET status = 'closed', winner_user_id = ?, current_price = ? WHERE id = ?")
+        .run(highestBid.user_id, highestBid.bid_amount, auctionId);
+
+      if (!existingWinner) {
+        db.prepare(`
+          INSERT INTO auction_winners (id, auction_id, user_id, final_price, status, payment_deadline)
+          VALUES (?, ?, ?, ?, 'waiting_payment', ?)
+        `).run(winnerId, auctionId, highestBid.user_id, highestBid.bid_amount, paymentDeadline);
+      }
+
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        randomUUID(),
+        highestBid.user_id,
+        'Seller Accepted Your Final Bid',
+        `The seller accepted your final bid of Rp ${highestBid.bid_amount.toLocaleString('id-ID')} for "${auction.jersey_title}". Please upload payment proof before the deadline.`,
+        'winner'
+      );
+
+      SseService.broadcast('auction_status', {
+        auctionId,
+        status: 'closed',
+        winnerUserId: highestBid.user_id,
+        finalPrice: highestBid.bid_amount
+      }, auctionId);
+
+      return res.json({ message: 'Seller accepted the negotiated price. Auction is successful.', status: 'closed' });
+    }
+
+    db.prepare("UPDATE auctions SET status = 'failed', winner_user_id = NULL WHERE id = ?").run(auctionId);
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(),
+      highestBid.user_id,
+      'Auction Was Not Successful',
+      `The seller did not accept the final bid of Rp ${highestBid.bid_amount.toLocaleString('id-ID')} for "${auction.jersey_title}". The auction was marked as unsuccessful.`,
+      'auction_failed'
+    );
+
+    SseService.broadcast('auction_status', {
+      auctionId,
+      status: 'failed',
+      winnerUserId: null,
+      finalPrice: highestBid.bid_amount
+    }, auctionId);
+
+    return res.json({ message: 'Seller rejected the negotiated price. Auction is not successful.', status: 'failed' });
+  } catch (error) {
+    console.error('Error saving seller auction decision:', error);
+    return res.status(500).json({ message: 'Error saving seller auction decision' });
   }
 });
 

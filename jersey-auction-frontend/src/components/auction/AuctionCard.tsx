@@ -16,10 +16,11 @@ export interface AuctionData {
   main_image: string;
   start_price: number;
   current_price: number;
+  reserve_price?: number;
   min_increment: number;
   start_time: string;
   end_time: string;
-  status: 'upcoming' | 'live' | 'closed';
+  status: 'upcoming' | 'live' | 'closed' | 'negotiation' | 'failed';
 }
 
 interface AuctionCardProps {
@@ -30,6 +31,8 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
   const isLive = auction.status === 'live';
   const isUpcoming = auction.status === 'upcoming';
   const isClosed = auction.status === 'closed';
+  const isNegotiation = auction.status === 'negotiation';
+  const isFailed = auction.status === 'failed';
 
   const formatPrice = (price: number) => {
     return `Rp ${price.toLocaleString('id-ID')}`;
@@ -38,12 +41,16 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
   const getStatusBadge = () => {
     if (isLive) return <Badge variant="live">LIVE</Badge>;
     if (isUpcoming) return <Badge variant="upcoming">UPCOMING</Badge>;
+    if (isNegotiation) return <Badge variant="negotiation">UNDER REVIEW</Badge>;
+    if (isFailed) return <Badge variant="failed">NOT SUCCESSFUL</Badge>;
     return <Badge variant="closed">CLOSED</Badge>;
   };
 
   const displayPriceLabel = () => {
     if (isUpcoming) return 'Start Price';
     if (isLive) return 'Current Bid';
+    if (isNegotiation) return 'Final Bid';
+    if (isFailed) return 'Final Bid';
     return 'Final Price';
   };
 
@@ -103,6 +110,10 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
             <div className="text-right">
               {isClosed ? (
                 <span className="text-xs font-bold text-slate-500 uppercase">Auction Ended</span>
+              ) : isNegotiation ? (
+                <span className="text-xs font-bold text-amber-400 uppercase">Seller Review</span>
+              ) : isFailed ? (
+                <span className="text-xs font-bold text-rose-400 uppercase">Not Successful</span>
               ) : isUpcoming ? (
                 <div className="text-[10px] text-slate-400 uppercase">
                   Starts At: {new Date(auction.start_time).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -120,7 +131,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
             to={`/auctions/${auction.id}`}
             className="mt-4 w-full inline-flex justify-center items-center py-2.5 px-4 text-xs font-black uppercase tracking-widest text-brand-navy gold-gradient-bg rounded-xl hover:brightness-110 transition-all font-sans duration-200"
           >
-            {isClosed ? 'View Result' : isUpcoming ? 'View Auction' : 'Place Bid'}
+            {isClosed || isNegotiation || isFailed ? 'View Result' : isUpcoming ? 'View Auction' : 'Place Bid'}
           </Link>
         </div>
       </div>

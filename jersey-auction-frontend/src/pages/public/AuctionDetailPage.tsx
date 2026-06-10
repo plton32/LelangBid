@@ -181,6 +181,13 @@ export const AuctionDetailPage: React.FC = () => {
   const isLive = auction.status === 'live';
   const isUpcoming = auction.status === 'upcoming';
   const isClosed = auction.status === 'closed';
+  const isNegotiation = auction.status === 'negotiation';
+  const isFailed = auction.status === 'failed';
+  const statusLabel = isNegotiation
+    ? 'under review'
+    : isFailed
+      ? 'not successful'
+      : String(auction.status).replace(/_/g, ' ');
 
   const defaultPlaceholder = 'https://images.unsplash.com/photo-1540747737956-37872404a8c1?q=80&w=600&auto=format&fit=crop';
   const getFullImgUrl = (url: string) => {
@@ -239,7 +246,7 @@ export const AuctionDetailPage: React.FC = () => {
         <div className="lg:col-span-7 space-y-6">
           <div>
             <div className="flex items-center space-x-3 mb-2">
-              <Badge variant={auction.status}>{auction.status}</Badge>
+              <Badge variant={auction.status}>{statusLabel}</Badge>
               <span className="text-xs text-slate-500 uppercase tracking-widest font-black">
                 Category: {auction.category_name}
               </span>
@@ -254,7 +261,7 @@ export const AuctionDetailPage: React.FC = () => {
           <Card className="bg-brand-navy border-slate-850 p-6 flex flex-col sm:flex-row items-center justify-between">
             <div className="mb-4 sm:mb-0">
               <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                {isClosed ? 'Winning Final Bid' : isUpcoming ? 'Starting Bid' : 'Current Leading Bid'}
+                {isClosed ? 'Winning Final Bid' : isNegotiation || isFailed ? 'Final Bid' : isUpcoming ? 'Starting Bid' : 'Current Leading Bid'}
               </span>
               <span className="text-2xl sm:text-3xl font-black text-brand-gold font-mono tracking-tight">
                 Rp {(auction.current_price || auction.start_price).toLocaleString('id-ID')}
@@ -264,6 +271,10 @@ export const AuctionDetailPage: React.FC = () => {
             <div className="text-center sm:text-right">
               {isClosed ? (
                 <Badge variant="closed" className="py-1 px-4 text-xs font-black">Auction Closed</Badge>
+              ) : isNegotiation ? (
+                <Badge variant="negotiation" className="py-1 px-4 text-xs font-black">Seller Review</Badge>
+              ) : isFailed ? (
+                <Badge variant="failed" className="py-1 px-4 text-xs font-black">Not Successful</Badge>
               ) : isUpcoming ? (
                 <div>
                   <span className="block text-[10px] font-black uppercase text-slate-400 mb-1">Starts At</span>
@@ -307,6 +318,26 @@ export const AuctionDetailPage: React.FC = () => {
               <div>
                 <p className="text-xs font-bold text-slate-300">Catalog drop is scheduled</p>
                 <p className="text-[11px] mt-1">This auction will open for bidding on the scheduled start time. Add this page to bookmarks to prepare your bids!</p>
+              </div>
+            </div>
+          )}
+
+          {isNegotiation && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 text-amber-200">
+              <ShieldAlert className="text-amber-400 mt-0.5 shrink-0" size={18} />
+              <div>
+                <p className="text-xs font-bold text-amber-100">Final bid is waiting for seller decision</p>
+                <p className="text-[11px] mt-1 text-amber-200/80">The highest bid is below the seller's final minimum price, so the seller must accept or reject the lower result.</p>
+              </div>
+            </div>
+          )}
+
+          {isFailed && (
+            <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-start space-x-3 text-rose-200">
+              <ShieldAlert className="text-rose-400 mt-0.5 shrink-0" size={18} />
+              <div>
+                <p className="text-xs font-bold text-rose-100">Auction was not successful</p>
+                <p className="text-[11px] mt-1 text-rose-200/80">The final bid did not continue into a completed transaction.</p>
               </div>
             </div>
           )}

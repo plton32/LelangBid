@@ -107,7 +107,7 @@ setInterval(() => {
 
     // 2. Check and close expired live auctions
     const expired = db.prepare(`
-      SELECT a.id, a.jersey_id, a.start_price, a.current_price, j.title
+      SELECT a.id, a.jersey_id, a.start_price, a.current_price, a.reserve_price, j.title, j.seller_id
       FROM auctions a
       LEFT JOIN jerseys j ON a.jersey_id = j.id
       WHERE a.status = 'live' AND a.end_time <= ?
@@ -115,6 +115,8 @@ setInterval(() => {
 
     if (expired.length > 0) {
       const updateToClosed = db.prepare("UPDATE auctions SET status = 'closed', winner_user_id = ? WHERE id = ?");
+      const updateToNegotiation = db.prepare("UPDATE auctions SET status = 'negotiation', winner_user_id = ? WHERE id = ?");
+      const updateToFailed = db.prepare("UPDATE auctions SET status = 'failed', winner_user_id = NULL WHERE id = ?");
       
       expired.forEach(auction => {
         // Find highest bid
@@ -125,6 +127,47 @@ setInterval(() => {
         `).get(auction.id) as any;
 
         if (highestBid) {
+          const reservePrice = Number(auction.reserve_price || 0);
+
+          if (reservePrice > 0 && highestBid.bid_amount < reservePrice) {
+            updateToNegotiation.run(highestBid.user_id, auction.id);
+
+            if (auction.seller_id) {
+              db.prepare(`
+                INSERT INTO notifications (id, user_id, title, message, type)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(
+                randomUUID(),
+                auction.seller_id,
+                'Auction Needs Seller Decision',
+                `The highest bid for "${auction.title}" is Rp ${highestBid.bid_amount.toLocaleString('id-ID')}, below your final minimum price of Rp ${reservePrice.toLocaleString('id-ID')}. Please accept or reject this lower price from Seller Center.`,
+                'auction_negotiation'
+              );
+            }
+
+            db.prepare(`
+              INSERT INTO notifications (id, user_id, title, message, type)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(
+              randomUUID(),
+              highestBid.user_id,
+              'Auction Under Seller Review',
+              `Your final bid of Rp ${highestBid.bid_amount.toLocaleString('id-ID')} for "${auction.title}" is being reviewed by the seller because it is below the final minimum price.`,
+              'auction_negotiation'
+            );
+
+            console.log(`Auction "${auction.title}" moved to negotiation. Highest bid: Rp ${highestBid.bid_amount}, reserve: Rp ${reservePrice}`);
+            SseService.broadcast('auction_status', {
+              auctionId: auction.id,
+              status: 'negotiation',
+              winnerUserId: highestBid.user_id,
+              finalPrice: highestBid.bid_amount,
+              reservePrice
+            }, auction.id);
+
+            return;
+          }
+
           // Declare winner
           updateToClosed.run(highestBid.user_id, auction.id);
 
@@ -157,12 +200,12 @@ setInterval(() => {
             finalPrice: highestBid.bid_amount
           }, auction.id);
         } else {
-          // Closed without bids
-          updateToClosed.run(null, auction.id);
-          console.log(`Auction "${auction.title}" closed with no bids.`);
+          // Failed without bids
+          updateToFailed.run(auction.id);
+          console.log(`Auction "${auction.title}" failed with no bids.`);
           SseService.broadcast('auction_status', {
             auctionId: auction.id,
-            status: 'closed',
+            status: 'failed',
             winnerUserId: null,
             finalPrice: 0
           }, auction.id);
