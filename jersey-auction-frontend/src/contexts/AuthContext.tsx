@@ -16,7 +16,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (fullName: string, email: string, phone: string, password: string, role: 'member' | 'seller') => Promise<User>;
+  register: (fullName: string, email: string, phone: string, password: string) => Promise<User>;
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -63,10 +63,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (fullName: string, email: string, phone: string, password: string, role: 'member' | 'seller'): Promise<User> => {
+  const register = async (fullName: string, email: string, phone: string, password: string): Promise<User> => {
     setLoading(true);
     try {
-      const response = await api.post('/auth/register', { fullName, email, phone, password, role });
+      const response = await api.post('/auth/register', { fullName, email, phone, password });
       const { token: apiToken, user: apiUser } = response.data;
       
       localStorage.setItem('lelangbid_token', apiToken);

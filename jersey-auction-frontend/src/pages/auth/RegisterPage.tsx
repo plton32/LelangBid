@@ -13,7 +13,6 @@ export const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'member' | 'seller'>('member');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,12 +27,8 @@ export const RegisterPage: React.FC = () => {
     setError('');
 
     try {
-      await register(fullName, email, phone, password, role);
-      if (role === 'seller') {
-        navigate('/seller');
-      } else {
-        navigate('/dashboard');
-      }
+      await register(fullName, email, phone, password);
+      navigate('/dashboard');
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || 'Error occurred during registration');
@@ -52,7 +47,7 @@ export const RegisterPage: React.FC = () => {
           <h2 className="text-2xl font-extrabold text-slate-100 uppercase tracking-wide">
             Register on Lelang<span className="gold-gradient-text">BID</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-2 font-medium">Join premium sports LelangBid bidding community</p>
+          <p className="text-xs text-slate-500 mt-2 font-medium">Create a collector account for premium sports LelangBid bidding</p>
         </div>
 
         {error && (
@@ -62,39 +57,6 @@ export const RegisterPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Role selector tab */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Select Profile Type
-            </label>
-            <div className="grid grid-cols-2 gap-2 bg-brand-navy p-1 rounded-xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setRole('member')}
-                disabled={loading}
-                className={`py-2 px-4 rounded-lg text-xs font-bold uppercase transition-all ${
-                  role === 'member'
-                    ? 'gold-gradient-bg text-brand-navy shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Collector / Bidder
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('seller')}
-                disabled={loading}
-                className={`py-2 px-4 rounded-lg text-xs font-bold uppercase transition-all ${
-                  role === 'seller'
-                    ? 'gold-gradient-bg text-brand-navy shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Store / Seller
-              </button>
-            </div>
-          </div>
-
           <Input
             label="Full Name *"
             type="text"

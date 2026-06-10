@@ -104,6 +104,7 @@ function App() {
           >
             <Route index element={<AdminDashboardPage />} />
             <Route path="users" element={<AdminDashboardPage />} />
+            <Route path="seller-applications" element={<AdminDashboardPage />} />
             <Route path="jerseys" element={<AdminDashboardPage />} />
             <Route path="auctions" element={<AdminDashboardPage />} />
             <Route path="deposits" element={<AdminDashboardPage />} />

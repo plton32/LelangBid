@@ -11,7 +11,8 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
 
   try {
     let query = `
-      SELECT s.*, w.final_price, j.title as jersey_title, j.seller_id, u.full_name as winner_name
+      SELECT s.*, w.final_price, a.start_price, a.start_time, a.end_time,
+             j.title as jersey_title, j.seller_id, u.full_name as winner_name
       FROM shipments s
       LEFT JOIN auction_winners w ON s.winner_id = w.id
       LEFT JOIN auctions a ON w.auction_id = a.id

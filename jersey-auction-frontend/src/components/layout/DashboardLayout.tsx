@@ -12,7 +12,8 @@ import {
   PlusCircle, 
   ShoppingBag, 
   LogOut, 
-  ArrowLeft 
+  ArrowLeft,
+  Store
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -30,6 +31,7 @@ export const DashboardLayout: React.FC = () => {
       return [
         { label: 'Stats Overview', path: '/admin', icon: <LayoutDashboard size={16} /> },
         { label: 'Manage Users', path: '/admin/users', icon: <Users size={16} /> },
+        { label: 'Seller Requests', path: '/admin/seller-applications', icon: <Store size={16} /> },
         { label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={16} /> },
         { label: 'Manage Auctions', path: '/admin/auctions', icon: <Gavel size={16} /> },
         { label: 'Verify Deposits', path: '/admin/deposits', icon: <CreditCard size={16} /> },

@@ -37,14 +37,40 @@ interface JerseyData {
   images: any[];
 }
 
+interface AuctionData {
+  id: string;
+  jersey_title: string;
+  main_image?: string;
+  seller_id: string;
+  start_price: number;
+  current_price: number;
+  final_price?: number | null;
+  start_time: string;
+  end_time: string;
+  status: 'live' | 'upcoming' | 'closed';
+}
+
+interface SaleData {
+  id: string;
+  jersey_title: string;
+  winner_name: string;
+  final_price: number;
+  start_price?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  courier?: string | null;
+  tracking_number?: string | null;
+  status: string;
+}
+
 export const SellerDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SellerTab>(() => getSellerTabFromPath(location.pathname));
   const [jerseys, setJerseys] = useState<JerseyData[]>([]);
-  const [auctions, setAuctions] = useState<any[]>([]);
-  const [sales, setSales] = useState<any[]>([]);
+  const [auctions, setAuctions] = useState<AuctionData[]>([]);
+  const [sales, setSales] = useState<SaleData[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,7 +101,7 @@ export const SellerDashboardPage: React.FC = () => {
       setCategories(catRes.data);
 
       const auctionsRes = await api.get('/auctions');
-      setAuctions(auctionsRes.data.filter((auction: any) => auction.seller_id === user?.id));
+      setAuctions(auctionsRes.data.filter((auction: AuctionData) => auction.seller_id === user?.id));
 
       const shipmentsRes = await api.get('/shipments');
       setSales(shipmentsRes.data);
@@ -177,12 +203,36 @@ export const SellerDashboardPage: React.FC = () => {
   };
 
   const defaultPlaceholder = 'https://images.unsplash.com/photo-1540747737956-37872404a8c1?q=80&w=600&auto=format&fit=crop';
-  const getFullImgUrl = (url: string) => {
+  const getFullImgUrl = (url?: string | null) => {
     return url ? (url.startsWith('http') ? url : `http://localhost:5000${url}`) : defaultPlaceholder;
   };
 
-  const formatPrice = (price: number) => {
-    return `Rp ${(price || 0).toLocaleString('id-ID')}`;
+  const formatPrice = (price?: number | null) => {
+    return `Rp ${Number(price || 0).toLocaleString('id-ID')}`;
+  };
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return '-';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+
+    return date.toLocaleString('id-ID', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+  };
+
+  const formatAuctionFinalPrice = (auction: AuctionData) => {
+    if (auction.final_price !== null && auction.final_price !== undefined) {
+      return formatPrice(auction.final_price);
+    }
+
+    if (auction.status === 'closed') {
+      return formatPrice(auction.current_price);
+    }
+
+    return 'Belum berakhir';
   };
 
   return (
@@ -327,8 +377,10 @@ export const SellerDashboardPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-slate-800 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="pb-3 pr-4">Auction Item</th>
-                    <th className="pb-3 px-4">Price</th>
-                    <th className="pb-3 px-4">Schedule</th>
+                    <th className="pb-3 px-4">Tanggal Mulai Lelang</th>
+                    <th className="pb-3 px-4">Berakhir Lelang</th>
+                    <th className="pb-3 px-4">Harga Awal Lelang</th>
+                    <th className="pb-3 px-4">Harga Akhir Lelang</th>
                     <th className="pb-3 px-4">Status</th>
                   </tr>
                 </thead>
@@ -345,12 +397,17 @@ export const SellerDashboardPage: React.FC = () => {
                         </div>
                         <span className="font-bold text-slate-200 line-clamp-1">{auction.jersey_title}</span>
                       </td>
-                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">
-                        {formatPrice(auction.current_price || auction.start_price)}
+                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold whitespace-nowrap">
+                        {formatDateTime(auction.start_time)}
                       </td>
-                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold">
-                        <span className="block">Start: {new Date(auction.start_time).toLocaleString('id-ID')}</span>
-                        <span className="block">End: {new Date(auction.end_time).toLocaleString('id-ID')}</span>
+                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold whitespace-nowrap">
+                        {formatDateTime(auction.end_time)}
+                      </td>
+                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">
+                        {formatPrice(auction.start_price)}
+                      </td>
+                      <td className="py-4 px-4 font-mono font-bold text-slate-200 whitespace-nowrap">
+                        {formatAuctionFinalPrice(auction)}
                       </td>
                       <td className="py-4 px-4">
                         <Badge variant={auction.status}>{auction.status}</Badge>
@@ -383,7 +440,10 @@ export const SellerDashboardPage: React.FC = () => {
                   <tr className="border-b border-slate-800 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="pb-3 pr-4">Winning Item</th>
                     <th className="pb-3 px-4">Winner</th>
-                    <th className="pb-3 px-4">Final Price</th>
+                    <th className="pb-3 px-4">Tanggal Mulai Lelang</th>
+                    <th className="pb-3 px-4">Berakhir Lelang</th>
+                    <th className="pb-3 px-4">Harga Awal Lelang</th>
+                    <th className="pb-3 px-4">Harga Akhir Lelang</th>
                     <th className="pb-3 px-4">Delivery</th>
                     <th className="pb-3 px-4">Status</th>
                   </tr>
@@ -393,7 +453,14 @@ export const SellerDashboardPage: React.FC = () => {
                     <tr key={sale.id} className="text-slate-300">
                       <td className="py-4 pr-4 font-bold text-slate-200 max-w-xs truncate">{sale.jersey_title}</td>
                       <td className="py-4 px-4 text-slate-400">{sale.winner_name}</td>
-                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">{formatPrice(sale.final_price)}</td>
+                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold whitespace-nowrap">
+                        {formatDateTime(sale.start_time)}
+                      </td>
+                      <td className="py-4 px-4 text-slate-400 text-[10px] font-semibold whitespace-nowrap">
+                        {formatDateTime(sale.end_time)}
+                      </td>
+                      <td className="py-4 px-4 font-mono font-bold text-brand-gold">{formatPrice(sale.start_price)}</td>
+                      <td className="py-4 px-4 font-mono font-bold text-slate-200">{formatPrice(sale.final_price)}</td>
                       <td className="py-4 px-4 text-[10px] text-slate-400">
                         <span className="block font-bold">{sale.courier || '-'}</span>
                         <span className="block font-mono">{sale.tracking_number || 'Tracking not assigned'}</span>

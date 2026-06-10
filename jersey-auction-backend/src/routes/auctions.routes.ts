@@ -30,12 +30,14 @@ router.get('/', (req, res) => {
 
   try {
     let query = `
-      SELECT a.*, j.title as jersey_title, j.condition, j.size, j.is_signed, j.has_coa, j.seller_id,
+      SELECT a.*, w.final_price,
+             j.title as jersey_title, j.condition, j.size, j.is_signed, j.has_coa, j.seller_id,
              c.name as category_name, c.slug as category_slug,
              (SELECT image_url FROM jersey_images WHERE jersey_id = j.id ORDER BY sort_order ASC LIMIT 1) as main_image
       FROM auctions a
       LEFT JOIN jerseys j ON a.jersey_id = j.id
       LEFT JOIN categories c ON j.category_id = c.id
+      LEFT JOIN auction_winners w ON w.auction_id = a.id
     `;
     const params: any[] = [];
     const conditions: string[] = [];
@@ -70,13 +72,15 @@ router.get('/:id', (req, res) => {
 
   try {
     const auction = db.prepare(`
-      SELECT a.*, j.title as jersey_title, j.player_name, j.club_name, j.league_name,
+      SELECT a.*, w.final_price,
+             j.title as jersey_title, j.player_name, j.club_name, j.league_name,
              j.season, j.size, j.condition, j.jersey_type, j.is_signed, j.has_coa, j.description, j.seller_id,
              c.name as category_name, u.full_name as seller_name
       FROM auctions a
       LEFT JOIN jerseys j ON a.jersey_id = j.id
       LEFT JOIN categories c ON j.category_id = c.id
       LEFT JOIN users u ON j.seller_id = u.id
+      LEFT JOIN auction_winners w ON w.auction_id = a.id
       WHERE a.id = ?
     `).get(id) as any;
 

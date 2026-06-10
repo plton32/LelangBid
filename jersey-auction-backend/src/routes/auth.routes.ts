@@ -10,13 +10,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jersey_lelang_token_k
 
 // Register
 router.post('/register', (req, res) => {
-  const { fullName, email, phone, password, role } = req.body;
+  const { fullName, email, phone, password } = req.body;
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ message: 'Full name, email, and password are required' });
   }
 
-  const targetRole = role === 'seller' ? 'seller' : 'member';
+  const targetRole = 'member';
 
   try {
     // Check if email exists

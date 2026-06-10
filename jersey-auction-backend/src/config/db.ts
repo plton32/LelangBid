@@ -136,6 +136,18 @@ export function initDb() {
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS seller_applications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      store_name TEXT,
+      reason TEXT,
+      status TEXT DEFAULT 'pending',
+      admin_note TEXT,
+      reviewed_by TEXT REFERENCES users(id),
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
     CREATE TABLE IF NOT EXISTS shipments (
       id TEXT PRIMARY KEY,
       winner_id TEXT REFERENCES auction_winners(id),

@@ -143,6 +143,18 @@ type DepositBankAccount = {
   updated_at: string;
 };
 
+type SellerApplication = {
+  id: string;
+  user_id: string;
+  store_name?: string | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+};
+
 type DemoState = {
   users: User[];
   categories: Category[];
@@ -157,6 +169,7 @@ type DemoState = {
   notifications: Notification[];
   deposits: DepositTransaction[];
   depositBankAccount: DepositBankAccount | null;
+  sellerApplications: SellerApplication[];
 };
 
 const STORAGE_KEY = 'lelangbid_demo_state_v1';
@@ -380,7 +393,9 @@ const initialState = (): DemoState => {
     updated_at: createdAt
   };
 
-  return { users, categories, jerseys, jerseyImages, auctions, bids, winners, payments, shipments, certificates, notifications, deposits, depositBankAccount };
+  const sellerApplications: SellerApplication[] = [];
+
+  return { users, categories, jerseys, jerseyImages, auctions, bids, winners, payments, shipments, certificates, notifications, deposits, depositBankAccount, sellerApplications };
 };
 
 const hydrateState = (state: DemoState): DemoState => ({
@@ -390,6 +405,7 @@ const hydrateState = (state: DemoState): DemoState => ({
     deposit_balance: Number((user as any).deposit_balance || 0)
   })),
   deposits: (state.deposits || []) as DepositTransaction[],
+  sellerApplications: (state.sellerApplications || []) as SellerApplication[],
   depositBankAccount: state.depositBankAccount || {
     id: 'primary',
     bank_name: 'BCA',
@@ -478,8 +494,10 @@ const enrichedJersey = (state: DemoState, jersey: Jersey) => ({
 const enrichedAuction = (state: DemoState, auction: Auction) => {
   const jersey = state.jerseys.find(j => j.id === auction.jersey_id);
   const category = jersey ? categoryById(state, jersey.category_id) : undefined;
+  const winner = state.winners.find(w => w.auction_id === auction.id);
   return {
     ...auction,
+    final_price: winner?.final_price,
     jersey_title: jersey?.title,
     condition: jersey?.condition,
     size: jersey?.size,
@@ -552,6 +570,9 @@ const shipmentRows = (state: DemoState, user?: User) => {
     return {
       ...shipment,
       final_price: winner?.final_price,
+      start_price: auction?.start_price,
+      start_time: auction?.start_time,
+      end_time: auction?.end_time,
       jersey_title: jersey?.title,
       seller_id: jersey?.seller_id,
       winner_name: userById(state, winner?.user_id || '')?.full_name
@@ -599,7 +620,8 @@ const stats = (state: DemoState) => ({
   closedAuctions: state.auctions.filter(a => a.status === 'closed').length,
   totalRevenue: state.winners.filter(w => w.status === 'completed').reduce((sum, row) => sum + row.final_price, 0),
   pendingPayments: state.winners.filter(w => w.status === 'waiting_payment').length,
-  pendingShipments: state.shipments.filter(s => s.status === 'pending').length
+  pendingShipments: state.shipments.filter(s => s.status === 'pending').length,
+  pendingSellerApplications: state.sellerApplications.filter(application => application.status === 'pending').length
 });
 
 const response = (config: AxiosRequestConfig, data: any, status = 200): AxiosResponse => ({
@@ -632,14 +654,13 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
 
     if (method === 'post' && path === '/auth/register') {
       if (state.users.some(u => u.email === body.email)) return errorResponse(config, 'Email is already registered', 400);
-      const role = body.role === 'seller' ? 'seller' : 'member';
       const user: User = {
         id: nextId('user'),
         full_name: body.fullName,
         email: body.email,
         phone: body.phone || '',
         password: body.password,
-        role,
+        role: 'member',
         status: 'active',
         deposit_balance: 0,
         created_at: new Date().toISOString()
@@ -652,6 +673,46 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     if (method === 'get' && path === '/auth/me') {
       const user = requireUser(state, config);
       return response(config, publicUser(user));
+    }
+
+    if (method === 'get' && path === '/seller-applications/me') {
+      const user = requireUser(state, config);
+      const application = [...state.sellerApplications]
+        .filter(row => row.user_id === user.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null;
+      return response(config, { currentRole: user.role, application });
+    }
+
+    if (method === 'post' && path === '/seller-applications') {
+      const user = requireUser(state, config);
+      if (user.role === 'seller' || user.role === 'admin') return errorResponse(config, 'This account already has seller access', 400);
+      if (state.sellerApplications.some(row => row.user_id === user.id && row.status === 'pending')) {
+        return errorResponse(config, 'Your seller application is already waiting for admin approval', 400);
+      }
+
+      const application: SellerApplication = {
+        id: nextId('seller-application'),
+        user_id: user.id,
+        store_name: String(body.storeName || ''),
+        reason: String(body.reason || ''),
+        status: 'pending',
+        admin_note: null,
+        reviewed_by: null,
+        reviewed_at: null,
+        created_at: new Date().toISOString()
+      };
+      state.sellerApplications.push(application);
+      state.notifications.push({
+        id: nextId('notif'),
+        user_id: user.id,
+        title: 'Seller Application Submitted',
+        message: 'Your seller application is waiting for admin approval.',
+        type: 'seller_application',
+        is_read: 0,
+        created_at: new Date().toISOString()
+      });
+      saveState(state);
+      return response(config, { message: 'Seller application submitted. Waiting for admin approval.', applicationId: application.id, status: application.status }, 201);
     }
 
     if (method === 'get' && path === '/deposits/me') {
@@ -1060,6 +1121,64 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const user = requireUser(state, config);
       requireRole(user, ['admin']);
       return response(config, state.users.map(({ password, ...row }) => row));
+    }
+
+    if (method === 'get' && path === '/admin/seller-applications') {
+      const user = requireUser(state, config);
+      requireRole(user, ['admin']);
+      const status = parsedUrl.searchParams.get('status');
+      let rows = state.sellerApplications;
+      if (status) rows = rows.filter(application => application.status === status);
+
+      return response(config, rows
+        .map(application => {
+          const owner = userById(state, application.user_id);
+          return {
+            ...application,
+            user_name: owner?.full_name,
+            user_email: owner?.email,
+            user_phone: owner?.phone,
+            current_role: owner?.role
+          };
+        })
+        .sort((a, b) => {
+          const rank = (value: string) => value === 'pending' ? 0 : value === 'approved' ? 1 : 2;
+          return rank(a.status) - rank(b.status) || b.created_at.localeCompare(a.created_at);
+        }));
+    }
+
+    const sellerApplicationVerify = path.match(/^\/admin\/seller-applications\/([^/]+)\/verify$/);
+    if (method === 'patch' && sellerApplicationVerify) {
+      const admin = requireUser(state, config);
+      requireRole(admin, ['admin']);
+      const application = state.sellerApplications.find(row => row.id === sellerApplicationVerify[1]);
+      if (!application) return errorResponse(config, 'Seller application not found', 404);
+      if (application.status !== 'pending') return errorResponse(config, `Seller application is already ${application.status}`, 400);
+      if (!['approved', 'rejected'].includes(body.status)) return errorResponse(config, 'Valid status (approved or rejected) is required', 400);
+
+      application.status = body.status;
+      application.admin_note = body.adminNote || null;
+      application.reviewed_by = admin.id;
+      application.reviewed_at = new Date().toISOString();
+
+      const applicant = userById(state, application.user_id);
+      if (body.status === 'approved' && applicant) {
+        applicant.role = 'seller';
+      }
+
+      state.notifications.push({
+        id: nextId('notif'),
+        user_id: application.user_id,
+        title: body.status === 'approved' ? 'Seller Application Approved' : 'Seller Application Rejected',
+        message: body.status === 'approved'
+          ? 'Your account has been upgraded to seller. You can now access Seller Center.'
+          : `Your seller application was rejected.${body.adminNote ? ` Note: ${body.adminNote}` : ''}`,
+        type: 'seller_application',
+        is_read: 0,
+        created_at: new Date().toISOString()
+      });
+      saveState(state);
+      return response(config, { message: `Seller application ${body.status}`, status: body.status });
     }
 
     const adminUserPatch = path.match(/^\/admin\/users\/([^/]+)$/);

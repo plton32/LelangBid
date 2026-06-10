@@ -9,13 +9,14 @@ import Modal from '../../components/ui/Modal';
 import { 
   LayoutDashboard, Users, Tag, Gavel, 
   CreditCard, Truck, Award, FileSpreadsheet,
-  Check, X, Plus, Eye, Download, Wallet
+  Check, X, Plus, Eye, Download, Wallet, Store
 } from 'lucide-react';
 
-type AdminTab = 'dashboard' | 'users' | 'verify-jerseys' | 'auctions' | 'deposits' | 'payments' | 'shipments' | 'coa';
+type AdminTab = 'dashboard' | 'users' | 'seller-applications' | 'verify-jerseys' | 'auctions' | 'deposits' | 'payments' | 'shipments' | 'coa';
 
 const getAdminTabFromPath = (pathname: string): AdminTab => {
   if (pathname.startsWith('/admin/users')) return 'users';
+  if (pathname.startsWith('/admin/seller-applications')) return 'seller-applications';
   if (pathname.startsWith('/admin/jerseys')) return 'verify-jerseys';
   if (pathname.startsWith('/admin/auctions')) return 'auctions';
   if (pathname.startsWith('/admin/deposits')) return 'deposits';
@@ -31,6 +32,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => getAdminTabFromPath(location.pathname));
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
+  const [sellerApplications, setSellerApplications] = useState<any[]>([]);
   const [jerseys, setJerseys] = useState<any[]>([]);
   const [auctions, setAuctions] = useState<any[]>([]);
   const [depositRequests, setDepositRequests] = useState<any[]>([]);
@@ -75,6 +77,9 @@ export const AdminDashboardPage: React.FC = () => {
 
       const usersRes = await api.get('/admin/users');
       setUsers(usersRes.data);
+
+      const sellerApplicationsRes = await api.get('/admin/seller-applications');
+      setSellerApplications(sellerApplicationsRes.data);
 
       // Jerseys list for verification
       const jerseysRes = await api.get('/jerseys?status=pending_verification');
@@ -159,6 +164,19 @@ export const AdminDashboardPage: React.FC = () => {
       fetchAdminData();
     } catch (err) {
       alert('Error approving jersey');
+    }
+  };
+
+  const handleSellerApplicationVerify = async (applicationId: string, status: 'approved' | 'rejected') => {
+    const adminNote = status === 'rejected'
+      ? window.prompt('Catatan penolakan untuk member (opsional):') || ''
+      : '';
+
+    try {
+      await api.patch(`/admin/seller-applications/${applicationId}/verify`, { status, adminNote });
+      fetchAdminData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error verifying seller application');
     }
   };
 
@@ -370,6 +388,11 @@ export const AdminDashboardPage: React.FC = () => {
               <h4 className="text-[10px] text-slate-500 font-bold uppercase">Total Revenue</h4>
               <span className="text-xl font-black text-slate-100 font-mono block mt-1">{formatPrice(stats.totalRevenue)}</span>
             </Card>
+            <Card className="p-4 bg-brand-navy-light/10 text-center">
+              <Store className="text-brand-gold mx-auto mb-1" size={24} />
+              <h4 className="text-[10px] text-slate-500 font-bold uppercase">Seller Requests</h4>
+              <span className="text-xl font-black text-slate-100 font-mono block mt-1">{stats.pendingSellerApplications || 0}</span>
+            </Card>
           </div>
         </>
       )}
@@ -379,6 +402,7 @@ export const AdminDashboardPage: React.FC = () => {
         {[
           { id: 'dashboard', label: 'Stats Overview', path: '/admin', icon: <LayoutDashboard size={14} /> },
           { id: 'users', label: 'Users', path: '/admin/users', icon: <Users size={14} /> },
+          { id: 'seller-applications', label: 'Seller Requests', path: '/admin/seller-applications', icon: <Store size={14} /> },
           { id: 'verify-jerseys', label: 'Verifikasi Jersey', path: '/admin/jerseys', icon: <Tag size={14} /> },
           { id: 'auctions', label: 'Auctions', path: '/admin/auctions', icon: <Gavel size={14} /> },
           { id: 'deposits', label: 'Deposits', path: '/admin/deposits', icon: <Wallet size={14} /> },
@@ -458,6 +482,75 @@ export const AdminDashboardPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {/* 2. SELLER APPLICATIONS TAB */}
+      {activeTab === 'seller-applications' && (
+        <Card className="p-5 bg-brand-navy-light/15 border-slate-800">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <h3 className="font-bold text-slate-200 text-sm uppercase tracking-wide">Seller Upgrade Requests</h3>
+            <Badge variant="warning">
+              {sellerApplications.filter(application => application.status === 'pending').length} pending
+            </Badge>
+          </div>
+
+          {sellerApplications.length === 0 ? (
+            <p className="text-center py-6 text-slate-500 font-bold">No seller applications yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {sellerApplications.map(application => (
+                <div key={application.id} className="p-4 bg-brand-navy border border-slate-850 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs sm:text-sm">{application.store_name || application.user_name}</h4>
+                    <p className="text-[10px] text-slate-450 mt-1 font-semibold uppercase tracking-wider">
+                      Applicant: {application.user_name} | {application.user_email}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed max-w-2xl">
+                      {application.reason || 'No application note provided.'}
+                    </p>
+                    <p className="text-[9px] text-slate-500 font-mono mt-1">
+                      Submitted: {new Date(application.created_at).toLocaleString('id-ID')}
+                      {application.reviewed_at ? ` | Reviewed: ${new Date(application.reviewed_at).toLocaleString('id-ID')}` : ''}
+                    </p>
+                    {application.admin_note && (
+                      <p className="text-[10px] text-brand-accent-red mt-1 font-semibold">Note: {application.admin_note}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <Badge variant={
+                      application.status === 'approved' ? 'success' :
+                      application.status === 'pending' ? 'warning' : 'closed'
+                    }>
+                      {application.status}
+                    </Badge>
+
+                    {application.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleSellerApplicationVerify(application.id, 'approved')}
+                          className="p-2 bg-brand-accent-green/15 text-brand-accent-green hover:bg-brand-accent-green/30 rounded-lg transition-colors flex items-center space-x-1"
+                          title="Approve Seller"
+                        >
+                          <Check size={16} />
+                          <span className="text-[9px] font-black uppercase pr-1.5 pl-0.5">Approve</span>
+                        </button>
+                        <button
+                          onClick={() => handleSellerApplicationVerify(application.id, 'rejected')}
+                          className="p-2 bg-brand-accent-red/15 text-brand-accent-red hover:bg-brand-accent-red/30 rounded-lg transition-colors flex items-center space-x-1"
+                          title="Reject Seller"
+                        >
+                          <X size={16} />
+                          <span className="text-[9px] font-black uppercase pr-1.5 pl-0.5">Reject</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 

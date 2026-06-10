@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
-import { Gavel, Award, Truck, AlertCircle, Sparkles, Upload, Wallet } from 'lucide-react';
+import { Gavel, Award, Truck, AlertCircle, Sparkles, Upload, Wallet, Store } from 'lucide-react';
 
 interface WinningRecord {
   id: string;
@@ -22,10 +23,22 @@ interface WinningRecord {
   shipment_status?: string;
 }
 
+interface SellerApplication {
+  id: string;
+  store_name?: string | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_note?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
 export const UserDashboardPage: React.FC = () => {
   const location = useLocation();
+  const { user, refreshUser } = useAuth();
   const [winnings, setWinnings] = useState<WinningRecord[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [sellerApplication, setSellerApplication] = useState<SellerApplication | null>(null);
   const [depositInfo, setDepositInfo] = useState({
     depositBalance: 0,
     bidDepositRequired: 1000000,
@@ -47,6 +60,11 @@ export const UserDashboardPage: React.FC = () => {
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositRequestAmount, setDepositRequestAmount] = useState('1000000');
   const [depositProofFile, setDepositProofFile] = useState<File | null>(null);
+  const [sellerStoreName, setSellerStoreName] = useState('');
+  const [sellerReason, setSellerReason] = useState('');
+  const [sellerApplicationLoading, setSellerApplicationLoading] = useState(false);
+  const [sellerApplicationError, setSellerApplicationError] = useState('');
+  const [sellerApplicationSuccess, setSellerApplicationSuccess] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [depositError, setDepositError] = useState('');
@@ -69,10 +87,53 @@ export const UserDashboardPage: React.FC = () => {
         bankAccount: depositRes.data.bankAccount || null,
         transactions: depositRes.data.transactions || []
       });
+
+      const sellerApplicationRes = await api.get('/seller-applications/me');
+      setSellerApplication(sellerApplicationRes.data.application || null);
+      if (sellerApplicationRes.data.currentRole === 'seller') {
+        refreshUser();
+      }
     } catch (err) {
       console.error('Error fetching dashboard details:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSellerApplicationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!sellerStoreName.trim()) {
+      setSellerApplicationError('Store name is required.');
+      return;
+    }
+
+    setSellerApplicationLoading(true);
+    setSellerApplicationError('');
+    setSellerApplicationSuccess('');
+
+    try {
+      const response = await api.post('/seller-applications', {
+        storeName: sellerStoreName.trim(),
+        reason: sellerReason.trim()
+      });
+
+      setSellerApplication({
+        id: response.data.applicationId,
+        store_name: sellerStoreName.trim(),
+        reason: sellerReason.trim(),
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+      setSellerStoreName('');
+      setSellerReason('');
+      setSellerApplicationSuccess('Seller application submitted. Waiting for admin approval.');
+      fetchDashboardData();
+    } catch (err: any) {
+      console.error(err);
+      setSellerApplicationError(err.response?.data?.message || 'Error submitting seller application.');
+    } finally {
+      setSellerApplicationLoading(false);
     }
   };
 
@@ -347,6 +408,108 @@ export const UserDashboardPage: React.FC = () => {
 
         {/* Right Side: Quick Notifications box (4 columns) */}
         <div className="lg:col-span-4 space-y-6">
+          {user?.role === 'member' && (
+            <>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-350">Seller Access</h2>
+
+              <Card className="bg-brand-navy-light/10 border-slate-800 p-5 rounded-2xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2.5 bg-brand-gold/10 rounded-xl text-brand-gold">
+                      <Store size={18} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Seller Upgrade</span>
+                      <span className="text-sm font-black text-slate-100 block mt-0.5">Ajukan Jadi Seller</span>
+                    </div>
+                  </div>
+                  {sellerApplication && (
+                    <Badge variant={
+                      sellerApplication.status === 'approved' ? 'success' :
+                      sellerApplication.status === 'pending' ? 'warning' : 'closed'
+                    }>
+                      {sellerApplication.status}
+                    </Badge>
+                  )}
+                </div>
+
+                {sellerApplication?.status === 'pending' && (
+                  <div className="mt-4 rounded-xl border border-brand-gold/20 bg-brand-gold/5 p-3 text-xs text-slate-300">
+                    <span className="block font-bold text-brand-gold">{sellerApplication.store_name || 'Seller Application'}</span>
+                    <span className="block text-[10px] text-slate-500 mt-1">
+                      Submitted: {new Date(sellerApplication.created_at).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                )}
+
+                {sellerApplication?.status === 'approved' && (
+                  <div className="mt-4 rounded-xl border border-brand-accent-green/30 bg-brand-accent-green/10 p-3 text-xs text-brand-accent-green font-semibold">
+                    Your account has been approved as seller.
+                    <a href="/seller" className="block mt-2 text-brand-gold font-black uppercase tracking-wider">
+                      Open Seller Center
+                    </a>
+                  </div>
+                )}
+
+                {sellerApplication?.status === 'rejected' && (
+                  <div className="mt-4 rounded-xl border border-brand-accent-red/30 bg-brand-accent-red/10 p-3 text-xs text-brand-accent-red font-semibold">
+                    Previous application rejected.
+                    {sellerApplication.admin_note && (
+                      <span className="block mt-1 text-[10px] text-slate-400">{sellerApplication.admin_note}</span>
+                    )}
+                  </div>
+                )}
+
+                {(!sellerApplication || sellerApplication.status === 'rejected') && (
+                  <form onSubmit={handleSellerApplicationSubmit} className="mt-4 space-y-3">
+                    {(sellerApplicationError || sellerApplicationSuccess) && (
+                      <div className={`p-3 rounded-xl border text-xs font-semibold ${
+                        sellerApplicationError
+                          ? 'bg-brand-accent-red/10 border-brand-accent-red/30 text-brand-accent-red'
+                          : 'bg-brand-accent-green/10 border-brand-accent-green/30 text-brand-accent-green'
+                      }`}>
+                        {sellerApplicationError || sellerApplicationSuccess}
+                      </div>
+                    )}
+
+                    <Input
+                      label="Store Name *"
+                      placeholder="e.g. Vintage Kit Room"
+                      value={sellerStoreName}
+                      onChange={(e) => setSellerStoreName(e.target.value)}
+                      disabled={sellerApplicationLoading}
+                      required
+                    />
+
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Application Note
+                      </label>
+                      <textarea
+                        value={sellerReason}
+                        onChange={(e) => setSellerReason(e.target.value)}
+                        disabled={sellerApplicationLoading}
+                        rows={3}
+                        placeholder="Tell admin what you plan to sell."
+                        className="w-full px-4 py-3 bg-brand-navy text-slate-100 placeholder-slate-600 rounded-xl border border-slate-800 focus:outline-none focus:border-brand-gold/50"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      variant="gold"
+                      fullWidth
+                      loading={sellerApplicationLoading}
+                      className="py-2.5 text-[10px] uppercase tracking-widest font-black"
+                    >
+                      Submit Seller Application
+                    </Button>
+                  </form>
+                )}
+              </Card>
+            </>
+          )}
+
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-350">Security Deposit</h2>
 
           <Card className="bg-brand-navy-light/10 border-slate-800 p-5 rounded-2xl">

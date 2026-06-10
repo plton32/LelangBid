@@ -23,6 +23,7 @@ import depositRoutes from './routes/deposits.routes';
 import shipmentRoutes from './routes/shipments.routes';
 import certificateRoutes from './routes/certificates.routes';
 import notificationRoutes from './routes/notifications.routes';
+import sellerApplicationRoutes from './routes/sellerApplications.routes';
 import adminRoutes from './routes/admin.routes';
 import { BID_DEPOSIT_REQUIRED, DEPOSIT_FORFEIT_RATE, DEPOSIT_REFUND_RATE } from './utils/deposit';
 
@@ -79,6 +80,7 @@ app.use('/api/deposits', depositRoutes);
 app.use('/api/shipments', shipmentRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/seller-applications', sellerApplicationRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Background Worker: Checks auction timings every 5 seconds
