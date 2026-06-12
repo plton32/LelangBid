@@ -61,10 +61,19 @@ export const Countdown: React.FC<CountdownProps> = ({ endTime, onEnd, compact = 
   }
 
   const formatNum = (num: number) => String(num).padStart(2, '0');
+  const totalSeconds = (timeLeft.days * 86400) + (timeLeft.hours * 3600) + (timeLeft.minutes * 60) + timeLeft.seconds;
+  const isUrgent = totalSeconds <= 300;
+  const isCritical = totalSeconds <= 60;
+  const toneClass = isCritical ? 'text-brand-accent-red' : isUrgent ? 'text-amber-400' : 'text-brand-gold';
+  const borderClass = isCritical ? 'border-brand-accent-red/45' : isUrgent ? 'border-amber-400/35' : 'border-slate-800';
+  const digitBoxClass = `bg-brand-navy border ${borderClass} ${toneClass} px-3 py-1.5 rounded-lg font-mono font-bold text-lg min-w-[38px] text-center shadow-inner ${
+    isUrgent ? 'animate-countdown-urgent' : ''
+  }`;
+  const separatorClass = `${toneClass} font-bold mb-5 ${isUrgent ? 'animate-countdown-urgent' : ''}`;
 
   if (compact) {
     return (
-      <span className="font-mono text-brand-gold font-bold">
+      <span className={`font-mono font-bold ${toneClass} ${isUrgent ? 'animate-countdown-urgent' : ''}`}>
         {timeLeft.days > 0 ? `${timeLeft.days}d ` : ''}
         {formatNum(timeLeft.hours)}:{formatNum(timeLeft.minutes)}:{formatNum(timeLeft.seconds)}
       </span>
@@ -75,28 +84,28 @@ export const Countdown: React.FC<CountdownProps> = ({ endTime, onEnd, compact = 
     <div className="flex items-center space-x-2">
       {timeLeft.days > 0 && (
         <div className="flex flex-col items-center">
-          <div className="bg-brand-navy border border-slate-800 text-brand-gold px-3 py-1.5 rounded-lg font-mono font-bold text-lg min-w-[38px] text-center shadow-inner">
+          <div className={digitBoxClass}>
             {formatNum(timeLeft.days)}
           </div>
           <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Days</span>
         </div>
       )}
       <div className="flex flex-col items-center">
-        <div className="bg-brand-navy border border-slate-800 text-brand-gold px-3 py-1.5 rounded-lg font-mono font-bold text-lg min-w-[38px] text-center shadow-inner">
+        <div className={digitBoxClass}>
           {formatNum(timeLeft.hours)}
         </div>
         <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Hrs</span>
       </div>
-      <span className="text-brand-gold font-bold mb-5">:</span>
+      <span className={separatorClass}>:</span>
       <div className="flex flex-col items-center">
-        <div className="bg-brand-navy border border-slate-800 text-brand-gold px-3 py-1.5 rounded-lg font-mono font-bold text-lg min-w-[38px] text-center shadow-inner">
+        <div className={digitBoxClass}>
           {formatNum(timeLeft.minutes)}
         </div>
         <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Mins</span>
       </div>
-      <span className="text-brand-gold font-bold mb-5">:</span>
+      <span className={separatorClass}>:</span>
       <div className="flex flex-col items-center">
-        <div className="bg-brand-navy border border-slate-800 text-brand-gold px-3 py-1.5 rounded-lg font-mono font-bold text-lg min-w-[38px] text-center shadow-inner">
+        <div className={digitBoxClass}>
           {formatNum(timeLeft.seconds)}
         </div>
         <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Secs</span>

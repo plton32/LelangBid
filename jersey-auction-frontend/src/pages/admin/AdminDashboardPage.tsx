@@ -7,9 +7,10 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
+import { getBidIncrementForAmount } from '../../lib/bidIncrement';
 import { 
   LayoutDashboard, Users, Tag, Gavel, 
-  CreditCard, Truck, Award, FileSpreadsheet,
+  CreditCard, Truck, Award,
   Check, X, Plus, Eye, Download, Wallet, Store
 } from 'lucide-react';
 
@@ -48,7 +49,6 @@ export const AdminDashboardPage: React.FC = () => {
   const [verifiedJerseys, setVerifiedJerseys] = useState<any[]>([]);
   const [selectedJerseyId, setSelectedJerseyId] = useState('');
   const [startPrice, setStartPrice] = useState('');
-  const [minIncrement, setMinIncrement] = useState('50000');
   const [reservePrice, setReservePrice] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -171,7 +171,7 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       await api.patch(`/admin/users/${userId}`, { role });
       fetchAdminData();
-    } catch (err) {
+    } catch {
       alert('Error updating user role');
     }
   };
@@ -181,7 +181,7 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       await api.patch(`/admin/users/${userId}`, { status });
       fetchAdminData();
-    } catch (err) {
+    } catch {
       alert('Error toggling user status');
     }
   };
@@ -190,7 +190,7 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       await api.patch(`/admin/jerseys/${jerseyId}/verify`, { status });
       fetchAdminData();
-    } catch (err) {
+    } catch {
       alert('Error approving jersey');
     }
   };
@@ -219,17 +219,14 @@ export const AdminDashboardPage: React.FC = () => {
 
     const parsedStartPrice = Number(startPrice);
     const parsedReservePrice = Number(reservePrice);
-    const parsedIncrement = Number(minIncrement);
     const parsedStartTime = new Date(startTime);
     const parsedEndTime = new Date(endTime);
 
     if (
       !Number.isFinite(parsedStartPrice) ||
       !Number.isFinite(parsedReservePrice) ||
-      !Number.isFinite(parsedIncrement) ||
       parsedStartPrice <= 0 ||
       parsedReservePrice <= 0 ||
-      parsedIncrement <= 0 ||
       Number.isNaN(parsedStartTime.getTime()) ||
       Number.isNaN(parsedEndTime.getTime())
     ) {
@@ -253,7 +250,6 @@ export const AdminDashboardPage: React.FC = () => {
       await api.post('/auctions', {
         jerseyId: selectedJerseyId,
         startPrice: parsedStartPrice,
-        minIncrement: parsedIncrement,
         reservePrice: parsedReservePrice,
         startTime,
         endTime
@@ -263,7 +259,6 @@ export const AdminDashboardPage: React.FC = () => {
       setSelectedJerseyId('');
       setStartPrice('');
       setReservePrice('');
-      setMinIncrement('50000');
       setStartTime('');
       setEndTime('');
       fetchAdminData();
@@ -279,7 +274,7 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       await api.patch(`/payments/${paymentId}/verify`, { status });
       fetchAdminData();
-    } catch (err) {
+    } catch {
       alert('Error verifying payment');
     }
   };
@@ -327,7 +322,7 @@ export const AdminDashboardPage: React.FC = () => {
         status: 'shipped'
       });
       fetchAdminData();
-    } catch (err) {
+    } catch {
       alert('Error updating shipment status');
     }
   };
@@ -721,7 +716,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <td className="py-3 px-4 font-mono font-bold">
                       <span className="block text-[10px] text-slate-500">Current: {formatPrice(a.current_price)}</span>
                       <span className="block text-[9px] text-brand-gold">Minimum: {formatPrice(a.reserve_price)}</span>
-                      <span className="block text-[9px] text-slate-650">Inc: +{formatPrice(a.min_increment)}</span>
+                      <span className="block text-[9px] text-slate-650">Next inc: +{formatPrice(getBidIncrementForAmount(Number(a.current_price || a.start_price || 0)))}</span>
                     </td>
                     <td className="py-3 px-4 text-[10px] font-bold">
                       <span className="block text-slate-400">Start: {new Date(a.start_time).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
@@ -1077,30 +1072,17 @@ export const AdminDashboardPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Starting Price (Rp) *"
-              type="number"
-              min="1000"
-              step="1000"
-              placeholder="e.g. 5000000"
-              value={startPrice}
-              onChange={(e) => setStartPrice(e.target.value)}
-              disabled={formLoading}
-              required
-            />
-            <Input
-              label="Minimum Increment (Rp) *"
-              type="number"
-              min="1000"
-              step="1000"
-              placeholder="e.g. 50000"
-              value={minIncrement}
-              onChange={(e) => setMinIncrement(e.target.value)}
-              disabled={formLoading}
-              required
-            />
-          </div>
+          <Input
+            label="Starting Price (Rp) *"
+            type="number"
+            min="1000"
+            step="1000"
+            placeholder="e.g. 5000000"
+            value={startPrice}
+            onChange={(e) => setStartPrice(e.target.value)}
+            disabled={formLoading}
+            required
+          />
 
           <Input
             label="Final Minimum Price (Rp) *"

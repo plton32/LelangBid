@@ -7,7 +7,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
-import { Tag, PlusCircle, LayoutDashboard, ShoppingBag, Sparkles, Plus, Upload, Gavel } from 'lucide-react';
+import { Tag, PlusCircle, ShoppingBag, Sparkles, Plus, Gavel } from 'lucide-react';
 
 type SellerTab = 'dashboard' | 'my-jerseys' | 'add-jersey' | 'my-auctions' | 'sales';
 type AuctionStatus = 'live' | 'upcoming' | 'closed' | 'negotiation' | 'failed';
@@ -79,7 +79,6 @@ export const SellerDashboardPage: React.FC = () => {
   const [auctions, setAuctions] = useState<AuctionData[]>([]);
   const [sales, setSales] = useState<SaleData[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Form states for adding jersey
   const [title, setTitle] = useState('');
@@ -118,8 +117,6 @@ export const SellerDashboardPage: React.FC = () => {
       setSales(shipmentsRes.data);
     } catch (err) {
       console.error('Error fetching seller details:', err);
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -2,7 +2,6 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import AuctionCard, { AuctionData } from '../../components/auction/AuctionCard';
-import Badge from '../../components/ui/Badge';
 import ScrollableTabBar from '../../components/ui/ScrollableTabBar';
 import { Gavel, Filter } from 'lucide-react';
 

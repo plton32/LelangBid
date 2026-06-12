@@ -5,7 +5,7 @@ import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import { ShieldCheck, ShieldAlert, Award, FileText, CheckCircle } from 'lucide-react';
+import { ShieldAlert, Award, CheckCircle } from 'lucide-react';
 
 export const VerifyCOAPage: React.FC = () => {
   const { coaNumber: paramCoaNumber } = useParams<{ coaNumber: string }>();

@@ -7,7 +7,7 @@ import Badge from '../../components/ui/Badge';
 import Card from '../../components/ui/Card';
 import BidBox from '../../components/auction/BidBox';
 import BidHistory, { BidRecord } from '../../components/auction/BidHistory';
-import { ShieldAlert, Award, Calendar, ShieldCheck, User } from 'lucide-react';
+import { ShieldAlert, Calendar, ShieldCheck, User } from 'lucide-react';
 
 export const AuctionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +26,7 @@ export const AuctionDetailPage: React.FC = () => {
     depositRequestMinimum: 50000
   });
   const [highlightedBidId, setHighlightedBidId] = useState<string>('');
+  const [priceFlashKey, setPriceFlashKey] = useState(0);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Fetch initial details
@@ -67,6 +68,7 @@ export const AuctionDetailPage: React.FC = () => {
           current_price: data.currentPrice,
           end_time: data.endTime
         }));
+        setPriceFlashKey(prev => prev + 1);
 
         setBids(data.bids);
 
@@ -79,7 +81,7 @@ export const AuctionDetailPage: React.FC = () => {
 
         if (data.extended) {
           setMessage({
-            text: '🔔 Auction extended by 2 minutes due to last-minute bid! (Anti-Sniper Rule)',
+            text: 'Auction extended by 2 minutes due to a last-minute bid. Anti-sniper rule applied.',
             type: 'success'
           });
           setTimeout(() => setMessage(null), 5000);
@@ -198,7 +200,7 @@ export const AuctionDetailPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Toast feedback alerts */}
       {message && (
-        <div className={`mb-6 p-4 rounded-xl border text-xs font-semibold text-center ${
+        <div className={`mb-6 p-4 rounded-xl border text-xs font-semibold text-center animate-toast-slide-in ${
           message.type === 'success' 
             ? 'bg-brand-accent-green/10 border-brand-accent-green/45 text-brand-accent-green' 
             : 'bg-brand-accent-red/10 border-brand-accent-red/45 text-brand-accent-red'
@@ -214,9 +216,10 @@ export const AuctionDetailPage: React.FC = () => {
         <div className="lg:col-span-5 space-y-4">
           <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-slate-800/80 bg-slate-950 shadow-premium">
             <img
+              key={activeImage || images[0]?.image_url || defaultPlaceholder}
               src={getFullImgUrl(activeImage || (images[0]?.image_url))}
               alt={auction.jersey_title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover animate-media-fade-in"
             />
           </div>
 
@@ -263,7 +266,12 @@ export const AuctionDetailPage: React.FC = () => {
               <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">
                 {isClosed ? 'Winning Final Bid' : isNegotiation || isFailed ? 'Final Bid' : isUpcoming ? 'Starting Bid' : 'Current Leading Bid'}
               </span>
-              <span className="text-2xl sm:text-3xl font-black text-brand-gold font-mono tracking-tight">
+              <span
+                key={priceFlashKey}
+                className={`text-2xl sm:text-3xl font-black text-brand-gold font-mono tracking-tight inline-block ${
+                  priceFlashKey > 0 ? 'animate-price-flash' : ''
+                }`}
+              >
                 Rp {(auction.current_price || auction.start_price).toLocaleString('id-ID')}
               </span>
             </div>
@@ -298,7 +306,6 @@ export const AuctionDetailPage: React.FC = () => {
           {isLive && (
             <BidBox
               currentPrice={auction.current_price}
-              minIncrement={auction.min_increment}
               startPrice={auction.start_price}
               bidsCount={bids.length}
               sellerId={auction.seller_id}

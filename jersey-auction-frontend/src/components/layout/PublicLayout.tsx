@@ -128,18 +128,23 @@ export const PublicLayout: React.FC = () => {
                   <div className="relative" ref={notifRef}>
                     <button
                       onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                      className="relative p-2 text-slate-400 hover:text-brand-accent-red focus:outline-none transition-colors"
+                      className={`relative p-2 hover:text-brand-accent-red focus:outline-none transition-colors ${
+                        unreadCount > 0 ? 'text-brand-gold' : 'text-slate-400'
+                      }`}
                     >
-                      <Bell size={20} />
+                      <Bell className={unreadCount > 0 ? 'animate-bell-attention' : ''} size={20} />
                       {unreadCount > 0 && (
-                        <span className="absolute top-1 right-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none text-brand-navy gold-gradient-bg">
+                        <span
+                          key={unreadCount}
+                          className="absolute top-1 right-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none text-brand-navy gold-gradient-bg animate-notification-pop"
+                        >
                           {unreadCount}
                         </span>
                       )}
                     </button>
 
                     {notifDropdownOpen && (
-                      <div className="absolute right-0 mt-3 w-80 bg-brand-navy-light/95 border border-brand-accent-red/25 rounded-2xl shadow-2xl overflow-hidden z-50">
+                      <div className="absolute right-0 mt-3 w-80 bg-brand-navy-light/95 border border-brand-accent-red/25 rounded-2xl shadow-2xl overflow-hidden z-50 animate-modal-panel-in">
                         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
                           <span className="text-xs font-black uppercase tracking-wider text-slate-300">Notifications</span>
                           {unreadCount > 0 && <span className="text-[10px] font-bold text-brand-accent-red">{unreadCount} unread</span>}

@@ -2,7 +2,6 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import AuctionCard, { AuctionData } from '../../components/auction/AuctionCard';
-import Badge from '../../components/ui/Badge';
 import { Gavel, Award, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
 
 export const HomePage: React.FC = () => {

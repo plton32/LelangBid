@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Button from '../ui/Button';
+import { getBidIncrementForAmount, getNextMinimumBid } from '../../lib/bidIncrement';
 
 interface BidBoxProps {
   currentPrice: number;
-  minIncrement: number;
   startPrice: number;
   bidsCount: number;
   sellerId: string;
@@ -17,7 +17,6 @@ interface BidBoxProps {
 
 export const BidBox: React.FC<BidBoxProps> = ({
   currentPrice,
-  minIncrement,
   startPrice,
   bidsCount,
   sellerId,
@@ -29,7 +28,9 @@ export const BidBox: React.FC<BidBoxProps> = ({
   loading
 }) => {
   const isOwner = currentUserId === sellerId;
-  const nextMinBid = bidsCount > 0 ? currentPrice + minIncrement : startPrice;
+  const activeIncrement = getBidIncrementForAmount(bidsCount > 0 ? currentPrice : startPrice);
+  const nextMinBid = getNextMinimumBid(currentPrice, startPrice, bidsCount);
+  const quickAddAmounts = [activeIncrement, activeIncrement * 2, activeIncrement * 5, activeIncrement * 10];
   const [bidAmount, setBidAmount] = useState<string>(String(nextMinBid));
   const [error, setError] = useState<string>('');
   const requiredDeposit = bidDepositRequired;
@@ -38,6 +39,10 @@ export const BidBox: React.FC<BidBoxProps> = ({
   const refundPercent = Math.round(depositRefundRate * 100);
 
   const formatPrice = (amount: number) => `Rp ${amount.toLocaleString('id-ID')}`;
+  const formatCompactPrice = (amount: number) => {
+    if (amount >= 1000000) return `${amount / 1000000}M`;
+    return `${amount / 1000}k`;
+  };
 
   useEffect(() => {
     setBidAmount(prev => {
@@ -105,7 +110,10 @@ export const BidBox: React.FC<BidBoxProps> = ({
   return (
     <div className="bg-brand-navy-light/25 border border-slate-800/80 rounded-2xl p-5 shadow-premium">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Minimum Bid Required</span>
+        <div>
+          <span className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Minimum Bid Required</span>
+          <span className="mt-1 block text-[10px] font-bold text-slate-500 uppercase tracking-wide">Step: +{formatPrice(activeIncrement)}</span>
+        </div>
         <span className="text-sm font-black text-brand-gold font-mono">{formatPrice(nextMinBid)}</span>
       </div>
 
@@ -163,38 +171,17 @@ export const BidBox: React.FC<BidBoxProps> = ({
 
         {/* Quick Bid Additions */}
         <div className="mt-4 flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => handleQuickAdd(50000)}
-            disabled={loading}
-            className="flex-1 py-2 bg-brand-navy hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 rounded-lg transition-colors font-mono"
-          >
-            +50k
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickAdd(100000)}
-            disabled={loading}
-            className="flex-1 py-2 bg-brand-navy hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 rounded-lg transition-colors font-mono"
-          >
-            +100k
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickAdd(250000)}
-            disabled={loading}
-            className="flex-1 py-2 bg-brand-navy hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 rounded-lg transition-colors font-mono"
-          >
-            +250k
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickAdd(500000)}
-            disabled={loading}
-            className="flex-1 py-2 bg-brand-navy hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 rounded-lg transition-colors font-mono"
-          >
-            +500k
-          </button>
+          {quickAddAmounts.map(amount => (
+            <button
+              key={amount}
+              type="button"
+              onClick={() => handleQuickAdd(amount)}
+              disabled={loading}
+              className="flex-1 py-2 bg-brand-navy hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 rounded-lg transition-colors font-mono"
+            >
+              +{formatCompactPrice(amount)}
+            </button>
+          ))}
         </div>
       </form>
     </div>

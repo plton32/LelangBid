@@ -1,4 +1,5 @@
 import type { AxiosAdapter, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { getBidIncrementForAmount, getNextMinimumBid } from './bidIncrement';
 
 type Role = 'member' | 'seller' | 'admin';
 type UserStatus = 'active' | 'suspended';
@@ -794,8 +795,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const transactions = state.deposits
         .filter(deposit => deposit.user_id === user.id)
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .slice(0, 10)
-        .map(({ user_id, ...deposit }) => deposit);
+        .slice(0, 10);
 
       return response(config, {
         depositBalance: Number(user.deposit_balance || 0),
@@ -811,7 +811,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     }
 
     if (method === 'get' && path === '/deposits/bank-account') {
-      const user = requireUser(state, config);
+      requireUser(state, config);
       return response(config, { bankAccount: state.depositBankAccount });
     }
 
@@ -1038,7 +1038,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const auctionId = nextId('auction');
       const startPrice = Number(body.startPrice);
       const reservePrice = Number(body.reservePrice || jersey.reserve_price || 0);
-      const minIncrement = Number(body.minIncrement || 50000);
+      const minIncrement = getBidIncrementForAmount(startPrice);
       const start = new Date(body.startTime);
       const end = new Date(body.endTime);
 
@@ -1046,11 +1046,9 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
         !Number.isFinite(startPrice) ||
         startPrice <= 0 ||
         !Number.isFinite(reservePrice) ||
-        reservePrice < 0 ||
-        !Number.isFinite(minIncrement) ||
-        minIncrement <= 0
+        reservePrice < 0
       ) {
-        return errorResponse(config, 'Auction prices and increment must be valid positive numbers', 400);
+        return errorResponse(config, 'Auction prices must be valid positive numbers', 400);
       }
 
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -1143,7 +1141,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const bidAmount = Number(body.bidAmount);
       if (!Number.isFinite(bidAmount) || bidAmount <= 0) return errorResponse(config, 'A valid bid amount is required', 400);
       const bidsCount = state.bids.filter(b => b.auction_id === auction.id).length;
-      const minAllowed = bidsCount > 0 ? auction.current_price + auction.min_increment : auction.start_price;
+      const minAllowed = getNextMinimumBid(auction.current_price, auction.start_price, bidsCount);
       if (bidAmount < minAllowed) return errorResponse(config, `Bid amount must be at least Rp ${minAllowed.toLocaleString('id-ID')}`, 400);
       const requiredDeposit = BID_DEPOSIT_REQUIRED;
       const depositBalance = Number(user.deposit_balance || 0);
@@ -1287,7 +1285,11 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     if (method === 'get' && path === '/admin/users') {
       const user = requireUser(state, config);
       requireRole(user, ['admin']);
-      return response(config, state.users.map(({ password, ...row }) => row));
+      return response(config, state.users.map(userRow => {
+        const row = { ...userRow } as Partial<User>;
+        delete row.password;
+        return row;
+      }));
     }
 
     if (method === 'get' && path === '/admin/seller-applications') {

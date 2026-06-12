@@ -5,6 +5,7 @@ import { authenticateToken, AuthRequest, requireRole } from '../middleware/auth'
 import { SseService } from '../services/sse.service';
 import { processAuctionStatusTransitions } from '../services/auctionLifecycle.service';
 import { calculateBidDepositRequirement, getDepositPolicy } from '../utils/deposit';
+import { getBidIncrementForAmount, getNextMinimumBid } from '../utils/bidIncrement';
 
 const router = Router();
 
@@ -128,7 +129,7 @@ router.get('/:id', (req, res) => {
 
 // POST create auction (admin only)
 router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
-  const { jerseyId, startPrice, minIncrement, startTime, endTime, reservePrice } = req.body;
+  const { jerseyId, startPrice, startTime, endTime, reservePrice } = req.body;
 
   if (!jerseyId || !startPrice || !startTime || !endTime) {
     return res.status(400).json({ message: 'Jersey ID, start price, start time, and end time are required' });
@@ -160,7 +161,7 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
     const normalizedReservePrice = reservePrice !== undefined && reservePrice !== null && reservePrice !== ''
       ? Number(reservePrice)
       : Number(jersey.reserve_price || 0);
-    const normalizedMinIncrement = Number(minIncrement || 50000);
+    const normalizedMinIncrement = getBidIncrementForAmount(normalizedStartPrice);
     const start = new Date(startTime);
     const end = new Date(endTime);
 
@@ -168,11 +169,9 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
       !Number.isFinite(normalizedStartPrice) ||
       normalizedStartPrice <= 0 ||
       !Number.isFinite(normalizedReservePrice) ||
-      normalizedReservePrice < 0 ||
-      !Number.isFinite(normalizedMinIncrement) ||
-      normalizedMinIncrement <= 0
+      normalizedReservePrice < 0
     ) {
-      return res.status(400).json({ message: 'Auction prices and increment must be valid positive numbers' });
+      return res.status(400).json({ message: 'Auction prices must be valid positive numbers' });
     }
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -373,11 +372,7 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
 
     // Validate price increment
     const bidsCount = (db.prepare('SELECT COUNT(*) as count FROM bids WHERE auction_id = ?').get(auctionId) as any).count;
-    let minAllowed = auction.start_price;
-
-    if (bidsCount > 0) {
-      minAllowed = auction.current_price + auction.min_increment;
-    }
+    const minAllowed = getNextMinimumBid(auction.current_price, auction.start_price, bidsCount);
 
     if (normalizedBidAmount < minAllowed) {
       return res.status(400).json({ message: `Bid amount must be at least Rp ${minAllowed.toLocaleString('id-ID')}` });

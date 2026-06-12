@@ -28,12 +28,12 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div 
-        className="fixed inset-0 bg-black/85 backdrop-blur-sm transition-opacity" 
+        className="fixed inset-0 bg-black/85 backdrop-blur-sm transition-opacity animate-modal-backdrop-in"
         onClick={onClose}
       />
 
       {/* Modal Container */}
-      <div className={`relative w-full ${sizes[size]} bg-brand-navy-light/95 border border-brand-accent-red/25 rounded-2xl shadow-2xl p-6 text-slate-100 z-10 transform transition-all`}>
+      <div className={`relative w-full ${sizes[size]} bg-brand-navy-light/95 border border-brand-accent-red/25 rounded-2xl shadow-2xl p-6 text-slate-100 z-10 transform transition-all animate-modal-panel-in`}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
           <h3 className="text-lg font-bold text-slate-100">{title}</h3>
