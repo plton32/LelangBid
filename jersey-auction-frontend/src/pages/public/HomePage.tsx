@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import AuctionCard, { AuctionData } from '../../components/auction/AuctionCard';
@@ -9,19 +9,26 @@ export const HomePage: React.FC = () => {
   const [liveAuctions, setLiveAuctions] = useState<AuctionData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchLiveAuctions = async () => {
-      try {
-        const response = await api.get('/auctions?status=live');
-        setLiveAuctions(response.data.slice(0, 3)); // show top 3 live auctions
-      } catch (error) {
-        console.error('Error loading live auctions:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLiveAuctions();
+  const fetchLiveAuctions = useCallback(async () => {
+    try {
+      const response = await api.get('/auctions?status=live');
+      setLiveAuctions(response.data.slice(0, 3)); // show top 3 live auctions
+    } catch (error) {
+      console.error('Error loading live auctions:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLiveAuctions();
+  }, [fetchLiveAuctions]);
+
+  const handleAuctionEnded = useCallback(() => {
+    window.setTimeout(() => {
+      fetchLiveAuctions();
+    }, 300);
+  }, [fetchLiveAuctions]);
 
   return (
     <div className="pb-16">
@@ -136,7 +143,7 @@ export const HomePage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {liveAuctions.map(auction => (
-              <AuctionCard key={auction.id} auction={auction} />
+              <AuctionCard key={auction.id} auction={auction} onAuctionEnded={handleAuctionEnded} />
             ))}
           </div>
         )}

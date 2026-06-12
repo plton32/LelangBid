@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
@@ -29,7 +29,7 @@ export const AuctionDetailPage: React.FC = () => {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Fetch initial details
-  const fetchDetails = async () => {
+  const fetchDetails = useCallback(async () => {
     try {
       const response = await api.get(`/auctions/${id}`);
       const data = response.data;
@@ -45,7 +45,7 @@ export const AuctionDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchDetails();
@@ -108,7 +108,7 @@ export const AuctionDetailPage: React.FC = () => {
       console.log('Closing SSE connection...');
       eventSource.close();
     };
-  }, [id]);
+  }, [id, fetchDetails]);
 
   useEffect(() => {
     const fetchDepositInfo = async () => {
@@ -288,7 +288,7 @@ export const AuctionDetailPage: React.FC = () => {
                     <span className="w-1.5 h-1.5 bg-brand-accent-red rounded-full mr-1.5 animate-pulse" />
                     Bidding Ends In
                   </span>
-                  <Countdown endTime={auction.end_time} />
+                  <Countdown endTime={auction.end_time} onEnd={fetchDetails} />
                 </div>
               )}
             </div>

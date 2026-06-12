@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import db from '../config/db';
 import { authenticateToken, AuthRequest, requireRole } from '../middleware/auth';
 import { SseService } from '../services/sse.service';
+import { processAuctionStatusTransitions } from '../services/auctionLifecycle.service';
 import { calculateBidDepositRequirement, getDepositPolicy } from '../utils/deposit';
 
 const router = Router();
@@ -29,6 +30,8 @@ router.get('/', (req, res) => {
   const { status, categorySlug } = req.query;
 
   try {
+    processAuctionStatusTransitions();
+
     let query = `
       SELECT a.*, w.final_price,
              j.title as jersey_title, j.condition, j.size, j.is_signed, j.has_coa, j.seller_id,
@@ -71,6 +74,8 @@ router.get('/:id', (req, res) => {
   const { id } = req.params;
 
   try {
+    processAuctionStatusTransitions();
+
     const auction = db.prepare(`
       SELECT a.*, w.final_price,
              j.title as jersey_title, j.player_name, j.club_name, j.league_name,

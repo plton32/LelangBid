@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import AuctionCard, { AuctionData } from '../../components/auction/AuctionCard';
@@ -34,30 +34,36 @@ export const AuctionListPage: React.FC = () => {
     loadCategories();
   }, []);
 
-  useEffect(() => {
-    // Load auctions
-    const loadAuctions = async () => {
-      setLoading(true);
-      try {
-        let url = '/auctions';
-        const params: string[] = [];
-        if (statusParam) params.push(`status=${statusParam}`);
-        if (categoryParam) params.push(`categorySlug=${categoryParam}`);
-        
-        if (params.length > 0) {
-          url += '?' + params.join('&');
-        }
-
-        const res = await api.get(url);
-        setAuctions(res.data);
-      } catch (err) {
-        console.error('Error loading auctions:', err);
-      } finally {
-        setLoading(false);
+  const loadAuctions = useCallback(async () => {
+    setLoading(true);
+    try {
+      let url = '/auctions';
+      const params: string[] = [];
+      if (statusParam) params.push(`status=${statusParam}`);
+      if (categoryParam) params.push(`categorySlug=${categoryParam}`);
+      
+      if (params.length > 0) {
+        url += '?' + params.join('&');
       }
-    };
-    loadAuctions();
+
+      const res = await api.get(url);
+      setAuctions(res.data);
+    } catch (err) {
+      console.error('Error loading auctions:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [statusParam, categoryParam]);
+
+  useEffect(() => {
+    loadAuctions();
+  }, [loadAuctions]);
+
+  const handleAuctionEnded = useCallback(() => {
+    window.setTimeout(() => {
+      loadAuctions();
+    }, 300);
+  }, [loadAuctions]);
 
   const handleStatusTab = (status: string) => {
     setSearchParams(prev => {
@@ -144,7 +150,7 @@ export const AuctionListPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {auctions.map(auction => (
-            <AuctionCard key={auction.id} auction={auction} />
+            <AuctionCard key={auction.id} auction={auction} onAuctionEnded={handleAuctionEnded} />
           ))}
         </div>
       )}

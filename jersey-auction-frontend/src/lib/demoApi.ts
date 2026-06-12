@@ -441,16 +441,69 @@ const loadState = (): DemoState => {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     const state = hydrateState(JSON.parse(stored) as DemoState);
+    syncDemoAuctionStatuses(state);
     saveState(state);
     return state;
   }
   const state = initialState();
+  syncDemoAuctionStatuses(state);
   saveState(state);
   return state;
 };
 
 const saveState = (state: DemoState) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+};
+
+const syncDemoAuctionStatuses = (state: DemoState) => {
+  const currentTime = Date.now();
+  let changed = false;
+
+  state.auctions.forEach(auction => {
+    if (auction.status === 'upcoming' && new Date(auction.start_time).getTime() <= currentTime) {
+      auction.status = 'live';
+      changed = true;
+    }
+
+    if (auction.status !== 'live' || new Date(auction.end_time).getTime() > currentTime) return;
+
+    const highestBid = [...state.bids]
+      .filter(bid => bid.auction_id === auction.id)
+      .sort((a, b) => b.bid_amount - a.bid_amount)[0];
+
+    if (!highestBid) {
+      auction.status = 'failed';
+      auction.winner_user_id = null;
+      changed = true;
+      return;
+    }
+
+    auction.current_price = highestBid.bid_amount;
+    auction.winner_user_id = highestBid.user_id;
+
+    const reservePrice = Number(auction.reserve_price || 0);
+    if (reservePrice > 0 && highestBid.bid_amount < reservePrice) {
+      auction.status = 'negotiation';
+      changed = true;
+      return;
+    }
+
+    auction.status = 'closed';
+    if (!state.winners.some(winner => winner.auction_id === auction.id)) {
+      state.winners.push({
+        id: nextId('winner'),
+        auction_id: auction.id,
+        user_id: highestBid.user_id,
+        final_price: highestBid.bid_amount,
+        status: 'waiting_payment',
+        payment_deadline: new Date(currentTime + 24 * hour).toISOString(),
+        created_at: new Date().toISOString()
+      });
+    }
+    changed = true;
+  });
+
+  return changed;
 };
 
 const parseBody = (data: any) => {

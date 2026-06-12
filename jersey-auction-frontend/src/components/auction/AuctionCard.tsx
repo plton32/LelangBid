@@ -25,9 +25,10 @@ export interface AuctionData {
 
 interface AuctionCardProps {
   auction: AuctionData;
+  onAuctionEnded?: () => void;
 }
 
-export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
+export const AuctionCard: React.FC<AuctionCardProps> = ({ auction, onAuctionEnded }) => {
   const isLive = auction.status === 'live';
   const isUpcoming = auction.status === 'upcoming';
   const isClosed = auction.status === 'closed';
@@ -121,7 +122,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ auction }) => {
               ) : (
                 <div className="flex flex-col items-end">
                   <span className="text-[10px] text-brand-accent-red font-bold uppercase tracking-widest mb-0.5">Ends In:</span>
-                  <Countdown endTime={auction.end_time} compact />
+                  <Countdown endTime={auction.end_time} onEnd={onAuctionEnded} compact />
                 </div>
               )}
             </div>

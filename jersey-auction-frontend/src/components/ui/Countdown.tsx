@@ -16,12 +16,17 @@ export const Countdown: React.FC<CountdownProps> = ({ endTime, onEnd, compact = 
   }>({ days: 0, hours: 0, minutes: 0, seconds: 0, isEnded: false });
 
   useEffect(() => {
+    let didNotifyEnd = false;
+
     const calculateTime = () => {
       const difference = +new Date(endTime) - +new Date();
       
       if (difference <= 0) {
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isEnded: true });
-        if (onEnd) onEnd();
+        if (!didNotifyEnd) {
+          didNotifyEnd = true;
+          if (onEnd) onEnd();
+        }
         return true; // is ended
       }
 
@@ -39,11 +44,13 @@ export const Countdown: React.FC<CountdownProps> = ({ endTime, onEnd, compact = 
     if (isEndedInitial) return;
 
     const interval = setInterval(() => {
-      calculateTime();
+      if (calculateTime()) {
+        clearInterval(interval);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [endTime]);
+  }, [endTime, onEnd]);
 
   if (timeLeft.isEnded) {
     return (
