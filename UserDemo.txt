@@ -2,3 +2,10 @@ admin@lelangbid.com / admin123
 seller@lelangbid.com / seller123
 member@lelangbid.com / member123
 buyer@lelangbid.com / member123
+
+catatan :
+Pending Jersey Verification tidak masuk ke damam live now/comingsoon
+Verify Authenticity Certificate (COA) tidak muncul juga
+
+Manage Auctions Catalog
+dalam live jersey yang sudah end tidak otomatir hilang dalam tampilan live dan di Manage Auctions Catalog tidak close/berakhir

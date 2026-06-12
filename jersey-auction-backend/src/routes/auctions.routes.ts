@@ -207,6 +207,11 @@ router.post('/', authenticateToken, requireRole(['admin']), (req, res) => {
 
     return res.status(201).json({ message: 'Auction created successfully', auctionId, status: initialStatus });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('UNIQUE') && errorMessage.includes('auctions')) {
+      return res.status(400).json({ message: 'This jersey is already in an active or upcoming auction' });
+    }
+
     console.error('Error creating auction:', error);
     return res.status(500).json({ message: 'Error creating auction' });
   }

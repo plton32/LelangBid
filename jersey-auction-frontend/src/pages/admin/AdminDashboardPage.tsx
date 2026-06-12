@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import Card from '../../components/ui/Card';
@@ -71,6 +71,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Form loading states
   const [formLoading, setFormLoading] = useState(false);
+  const createAuctionSubmittingRef = useRef(false);
 
   const fetchAdminData = async () => {
     try {
@@ -87,14 +88,14 @@ export const AdminDashboardPage: React.FC = () => {
       const jerseysRes = await api.get('/jerseys?status=pending_verification');
       setJerseys(jerseysRes.data);
 
+      // Auctions list
+      const auctionsRes = await api.get('/auctions');
+      setAuctions(auctionsRes.data);
+
       // All verified jerseys (available for auction or COA creation)
       const allJerseysRes = await api.get('/jerseys');
       const verified = allJerseysRes.data.filter((j: any) => j.status === 'verified');
       setVerifiedJerseys(verified);
-
-      // Auctions list
-      const auctionsRes = await api.get('/auctions');
-      setAuctions(auctionsRes.data);
 
       // Deposit requests and admin bank account
       const depositRes = await api.get('/deposits/admin/requests');
@@ -209,6 +210,8 @@ export const AdminDashboardPage: React.FC = () => {
 
   const handleCreateAuctionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createAuctionSubmittingRef.current) return;
+
     if (!selectedJerseyId || !startPrice || !reservePrice || !startTime || !endTime) {
       alert('Please fill in all fields');
       return;
@@ -244,6 +247,7 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
+    createAuctionSubmittingRef.current = true;
     setFormLoading(true);
     try {
       await api.post('/auctions', {
@@ -259,12 +263,14 @@ export const AdminDashboardPage: React.FC = () => {
       setSelectedJerseyId('');
       setStartPrice('');
       setReservePrice('');
+      setMinIncrement('50000');
       setStartTime('');
       setEndTime('');
       fetchAdminData();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error creating auction');
     } finally {
+      createAuctionSubmittingRef.current = false;
       setFormLoading(false);
     }
   };
@@ -407,6 +413,13 @@ export const AdminDashboardPage: React.FC = () => {
     { id: 'shipments', label: 'Shipments', path: '/admin/shipments', icon: <Truck size={14} /> },
     { id: 'coa', label: 'COA Certs', path: '/admin/certificates', icon: <Award size={14} /> }
   ];
+
+  const activeAuctionJerseyIds = new Set(
+    auctions
+      .filter((auction: any) => ['upcoming', 'live', 'negotiation'].includes(auction.status))
+      .map((auction: any) => auction.jersey_id)
+  );
+  const auctionEligibleJerseys = verifiedJerseys.filter(jersey => !activeAuctionJerseyIds.has(jersey.id));
 
   if (loading) {
     return (
@@ -1051,11 +1064,12 @@ export const AdminDashboardPage: React.FC = () => {
             <select
               value={selectedJerseyId}
               onChange={(e) => setSelectedJerseyId(e.target.value)}
+              disabled={formLoading}
               required
               className="w-full px-4 py-3 bg-brand-navy text-slate-100 rounded-xl border border-slate-800 focus:outline-none"
             >
               <option value="">Select Verified Jersey</option>
-              {verifiedJerseys.map(j => (
+              {auctionEligibleJerseys.map(j => (
                 <option key={j.id} value={j.id}>
                   {j.title} (Seller: {j.seller_name} | Start: {formatPrice(j.auction_start_price)} | Minimum: {formatPrice(j.reserve_price)})
                 </option>
@@ -1067,17 +1081,23 @@ export const AdminDashboardPage: React.FC = () => {
             <Input
               label="Starting Price (Rp) *"
               type="number"
+              min="1000"
+              step="1000"
               placeholder="e.g. 5000000"
               value={startPrice}
               onChange={(e) => setStartPrice(e.target.value)}
+              disabled={formLoading}
               required
             />
             <Input
               label="Minimum Increment (Rp) *"
               type="number"
+              min="1000"
+              step="1000"
               placeholder="e.g. 50000"
               value={minIncrement}
               onChange={(e) => setMinIncrement(e.target.value)}
+              disabled={formLoading}
               required
             />
           </div>
@@ -1085,9 +1105,12 @@ export const AdminDashboardPage: React.FC = () => {
           <Input
             label="Final Minimum Price (Rp) *"
             type="number"
+            min="1000"
+            step="1000"
             placeholder="e.g. 7500000"
             value={reservePrice}
             onChange={(e) => setReservePrice(e.target.value)}
+            disabled={formLoading}
             required
           />
 
@@ -1097,6 +1120,7 @@ export const AdminDashboardPage: React.FC = () => {
               type="datetime-local"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
+              disabled={formLoading}
               required
             />
             <Input
@@ -1104,6 +1128,7 @@ export const AdminDashboardPage: React.FC = () => {
               type="datetime-local"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
+              disabled={formLoading}
               required
             />
           </div>

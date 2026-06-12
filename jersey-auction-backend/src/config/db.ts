@@ -196,6 +196,19 @@ export function initDb() {
   ensureColumn('jerseys', 'reserve_price', 'REAL DEFAULT 0');
   ensureColumn('auctions', 'reserve_price', 'REAL DEFAULT 0');
 
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_auctions_one_active_per_jersey
+      ON auctions (jersey_id)
+      WHERE status IN ('upcoming', 'live', 'negotiation')
+    `);
+  } catch (error) {
+    console.warn(
+      'Could not create active auction uniqueness guard. Resolve duplicate active auctions first.',
+      error
+    );
+  }
+
   // Seed default data if users table is empty
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
   if (userCount === 0) {

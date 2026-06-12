@@ -968,18 +968,53 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     if (method === 'post' && path === '/auctions') {
       const user = requireUser(state, config);
       requireRole(user, ['admin']);
+
+      if (!body.jerseyId || !body.startPrice || !body.startTime || !body.endTime) {
+        return errorResponse(config, 'Jersey ID, start price, start time, and end time are required', 400);
+      }
+
       const jersey = state.jerseys.find(j => j.id === body.jerseyId);
       if (!jersey) return errorResponse(config, 'Jersey not found', 404);
+      if (jersey.status !== 'verified') return errorResponse(config, 'Only verified jerseys can be auctioned', 400);
+
+      const activeAuction = state.auctions.find(
+        auction => auction.jersey_id === jersey.id && ['upcoming', 'live', 'negotiation'].includes(auction.status)
+      );
+      if (activeAuction) return errorResponse(config, 'This jersey is already in an active or upcoming auction', 400);
+
       const auctionId = nextId('auction');
       const startPrice = Number(body.startPrice);
       const reservePrice = Number(body.reservePrice || jersey.reserve_price || 0);
+      const minIncrement = Number(body.minIncrement || 50000);
       const start = new Date(body.startTime);
+      const end = new Date(body.endTime);
+
+      if (
+        !Number.isFinite(startPrice) ||
+        startPrice <= 0 ||
+        !Number.isFinite(reservePrice) ||
+        reservePrice < 0 ||
+        !Number.isFinite(minIncrement) ||
+        minIncrement <= 0
+      ) {
+        return errorResponse(config, 'Auction prices and increment must be valid positive numbers', 400);
+      }
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return errorResponse(config, 'Start time and end time must be valid dates', 400);
+      }
+
+      if (end <= start) return errorResponse(config, 'End time must be after start time', 400);
+      if (reservePrice > 0 && reservePrice < startPrice) {
+        return errorResponse(config, 'Final minimum price must be greater than or equal to the starting price', 400);
+      }
+
       const auction: Auction = {
         id: auctionId,
         jersey_id: jersey.id,
         start_price: startPrice,
         current_price: startPrice,
-        min_increment: Number(body.minIncrement || 50000),
+        min_increment: minIncrement,
         reserve_price: reservePrice,
         start_time: body.startTime,
         end_time: body.endTime,

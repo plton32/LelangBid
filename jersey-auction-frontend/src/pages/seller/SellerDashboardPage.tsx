@@ -792,7 +792,7 @@ export const SellerDashboardPage: React.FC = () => {
                 <Input
                   label="Harga Awal Lelang (Rp) *"
                   type="number"
-                  min="1"
+                  min="1000"
                   step="1000"
                   placeholder="e.g. 5000000"
                   value={auctionStartPrice}
@@ -803,7 +803,7 @@ export const SellerDashboardPage: React.FC = () => {
                 <Input
                   label="Harga Akhir Minimum (Rp) *"
                   type="number"
-                  min="1"
+                  min="1000"
                   step="1000"
                   placeholder="e.g. 7500000"
                   value={reservePrice}
