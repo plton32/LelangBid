@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import db from '../config/db';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { syncUserDepositBalance } from '../utils/depositBalance';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jersey_lelang_token_key_12345';
@@ -79,6 +80,7 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
+    const depositBalance = syncUserDepositBalance(user.id);
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     return res.json({
@@ -90,7 +92,7 @@ router.post('/login', (req, res) => {
         phone: user.phone,
         role: user.role,
         status: user.status,
-        depositBalance: Number(user.deposit_balance || 0)
+        depositBalance
       }
     });
   } catch (error) {
@@ -107,6 +109,8 @@ router.get('/me', authenticateToken, (req: AuthRequest, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    const depositBalance = syncUserDepositBalance(user.id);
+
     return res.json({
       id: user.id,
       fullName: user.full_name,
@@ -114,7 +118,7 @@ router.get('/me', authenticateToken, (req: AuthRequest, res) => {
       phone: user.phone,
       role: user.role,
       status: user.status,
-      depositBalance: Number(user.deposit_balance || 0)
+      depositBalance
     });
   } catch (error) {
     console.error('Me query error:', error);

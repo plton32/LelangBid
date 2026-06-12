@@ -6,6 +6,7 @@ import { SseService } from '../services/sse.service';
 import { processAuctionStatusTransitions } from '../services/auctionLifecycle.service';
 import { calculateBidDepositRequirement, getDepositPolicy } from '../utils/deposit';
 import { getBidIncrementForAmount, getNextMinimumBid } from '../utils/bidIncrement';
+import { syncUserDepositBalance } from '../utils/depositBalance';
 
 const router = Router();
 
@@ -379,8 +380,7 @@ router.post('/:id/bid', authenticateToken, requireRole(['member', 'seller', 'adm
     }
 
     const requiredDeposit = calculateBidDepositRequirement(normalizedBidAmount);
-    const bidder = db.prepare('SELECT deposit_balance FROM users WHERE id = ?').get(userId) as any;
-    const depositBalance = Number(bidder?.deposit_balance || 0);
+    const depositBalance = syncUserDepositBalance(userId);
 
     if (req.user!.role !== 'admin' && depositBalance < requiredDeposit) {
       const depositShortfall = requiredDeposit - depositBalance;

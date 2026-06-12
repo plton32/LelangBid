@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../config/db';
 import { authenticateToken, AuthRequest, requireRole } from '../middleware/auth';
 import { randomUUID } from 'node:crypto';
+import { syncUserDepositBalance } from '../utils/depositBalance';
 
 const router = Router();
 
@@ -40,7 +41,11 @@ router.get('/stats', (req, res) => {
 // GET users listing
 router.get('/users', (req, res) => {
   try {
-    const users = db.prepare('SELECT id, full_name, email, phone, role, status, deposit_balance, created_at FROM users').all();
+    const users = (db.prepare('SELECT id, full_name, email, phone, role, status, deposit_balance, created_at FROM users').all() as any[])
+      .map(user => ({
+        ...user,
+        deposit_balance: syncUserDepositBalance(user.id)
+      }));
     return res.json(users);
   } catch (error) {
     console.error('Error fetching admin users:', error);

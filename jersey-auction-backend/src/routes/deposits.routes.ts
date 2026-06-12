@@ -6,6 +6,7 @@ import db from '../config/db';
 import { ensureUploadDir, toUploadUrl } from '../config/storage';
 import { authenticateToken, AuthRequest, requireRole } from '../middleware/auth';
 import { BID_DEPOSIT_REQUIRED, DEPOSIT_REQUEST_MINIMUM, getDepositPolicy } from '../utils/deposit';
+import { syncUserDepositBalance } from '../utils/depositBalance';
 
 const router = Router();
 const uploadDir = ensureUploadDir();
@@ -74,10 +75,11 @@ router.get('/me', authenticateToken, (req: AuthRequest, res) => {
   const userId = req.user!.id;
 
   try {
-    const user = db.prepare('SELECT deposit_balance FROM users WHERE id = ?').get(userId) as any;
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    const depositBalance = syncUserDepositBalance(userId);
 
     const transactions = db.prepare(`
       SELECT id, amount, status, method, proof_image_url, admin_note, verified_at, created_at
@@ -88,7 +90,7 @@ router.get('/me', authenticateToken, (req: AuthRequest, res) => {
     `).all(userId);
 
     return res.json({
-      depositBalance: Number(user.deposit_balance || 0),
+      depositBalance,
       bankAccount: getActiveBankAccount() || null,
       ...getDepositPolicy(),
       transactions
@@ -119,12 +121,13 @@ router.post('/request', authenticateToken, upload.single('proof'), (req: AuthReq
       return res.status(400).json({ message: 'Deposit bank account has not been configured by admin' });
     }
 
-    const user = db.prepare('SELECT id, deposit_balance FROM users WHERE id = ?').get(userId) as any;
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const requiredShortfall = Math.max(0, BID_DEPOSIT_REQUIRED - Number(user.deposit_balance || 0));
+    const depositBalance = syncUserDepositBalance(userId);
+    const requiredShortfall = Math.max(0, BID_DEPOSIT_REQUIRED - depositBalance);
     if (requiredShortfall === 0) {
       return res.status(400).json({ message: 'Your bidding deposit is already active' });
     }
@@ -183,7 +186,10 @@ router.get('/admin/requests', authenticateToken, requireRole(['admin']), (req, r
 
     query += ' ORDER BY d.created_at DESC LIMIT 100';
 
-    const requests = db.prepare(query).all(...params);
+    const requests = (db.prepare(query).all(...params) as any[]).map(request => ({
+      ...request,
+      deposit_balance: syncUserDepositBalance(request.user_id)
+    }));
     return res.json(requests);
   } catch (error) {
     console.error('Error fetching deposit requests:', error);
@@ -260,12 +266,12 @@ router.patch('/admin/requests/:id/verify', authenticateToken, requireRole(['admi
       throw error;
     }
 
-    const updatedUser = db.prepare('SELECT deposit_balance FROM users WHERE id = ?').get(deposit.user_id) as any;
+    const depositBalance = syncUserDepositBalance(deposit.user_id);
 
     return res.json({
       message: `Deposit request marked as ${status}`,
       status,
-      depositBalance: Number(updatedUser?.deposit_balance || 0)
+      depositBalance
     });
   } catch (error) {
     console.error('Error verifying deposit request:', error);

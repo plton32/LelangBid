@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
@@ -78,7 +78,7 @@ export const UserDashboardPage: React.FC = () => {
   const sellerAccessInactive = sellerApplication?.status === 'approved' && !hasActiveSellerRole;
   const canSubmitSellerApplication = !sellerApplication || sellerApplication.status === 'rejected' || sellerAccessInactive;
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const winRes = await api.get('/notifications/winnings');
       setWinnings(winRes.data);
@@ -107,7 +107,7 @@ export const UserDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshUser]);
 
   const handleSellerApplicationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,7 +207,27 @@ export const UserDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+    const interval = window.setInterval(fetchDashboardData, 30000);
+
+    const handleFocus = () => {
+      fetchDashboardData();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchDashboardData]);
 
   const openUploadModal = (winner: WinningRecord) => {
     setSelectedWinner(winner);

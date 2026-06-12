@@ -112,25 +112,47 @@ export const AuctionDetailPage: React.FC = () => {
     };
   }, [id, fetchDetails]);
 
-  useEffect(() => {
-    const fetchDepositInfo = async () => {
-      if (!user) return;
+  const fetchDepositInfo = useCallback(async () => {
+    if (!user?.id) return;
 
-      try {
-        const response = await api.get('/deposits/me');
-        setDepositInfo({
-          depositBalance: Number(response.data.depositBalance || 0),
-          bidDepositRequired: Number(response.data.bidDepositRequired || response.data.bidDepositMinimum || 1000000),
-          depositRefundRate: Number(response.data.depositRefundRate || 0.7),
-          depositRequestMinimum: Number(response.data.depositRequestMinimum || 50000)
-        });
-      } catch (error) {
-        console.error('Error loading deposit info:', error);
+    try {
+      const response = await api.get('/deposits/me');
+      setDepositInfo({
+        depositBalance: Number(response.data.depositBalance || 0),
+        bidDepositRequired: Number(response.data.bidDepositRequired || response.data.bidDepositMinimum || 1000000),
+        depositRefundRate: Number(response.data.depositRefundRate || 0.7),
+        depositRequestMinimum: Number(response.data.depositRequestMinimum || 50000)
+      });
+    } catch (error) {
+      console.error('Error loading deposit info:', error);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchDepositInfo();
+    if (!user?.id) return undefined;
+
+    const interval = window.setInterval(fetchDepositInfo, 30000);
+
+    const handleFocus = () => {
+      fetchDepositInfo();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDepositInfo();
       }
     };
 
-    fetchDepositInfo();
-  }, [user?.id]);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchDepositInfo, user?.id]);
 
   const handlePlaceBid = async (amount: number) => {
     setBidLoading(true);
