@@ -2,6 +2,7 @@ import axios from 'axios';
 import { demoApiAdapter } from './demoApi';
 
 const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const AUTH_REFRESH_EVENT = 'lelangbid-auth-refresh';
 const API_BASE_URL = IS_DEMO_MODE
   ? '/api'
   : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
@@ -43,6 +44,9 @@ api.interceptors.response.use(
       if (!isPublic) {
         window.location.href = '/login';
       }
+    }
+    if (error.response && error.response.status === 403) {
+      window.dispatchEvent(new Event(AUTH_REFRESH_EVENT));
     }
     return Promise.reject(error);
   }

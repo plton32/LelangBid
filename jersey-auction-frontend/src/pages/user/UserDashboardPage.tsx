@@ -39,6 +39,7 @@ export const UserDashboardPage: React.FC = () => {
   const [winnings, setWinnings] = useState<WinningRecord[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [sellerApplication, setSellerApplication] = useState<SellerApplication | null>(null);
+  const [sellerApplicationCurrentRole, setSellerApplicationCurrentRole] = useState<string | null>(null);
   const [depositInfo, setDepositInfo] = useState({
     depositBalance: 0,
     bidDepositRequired: 1000000,
@@ -69,6 +70,13 @@ export const UserDashboardPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [depositError, setDepositError] = useState('');
   const [depositSuccess, setDepositSuccess] = useState('');
+  const hasActiveSellerRole =
+    sellerApplicationCurrentRole === 'seller' ||
+    sellerApplicationCurrentRole === 'admin' ||
+    user?.role === 'seller' ||
+    user?.role === 'admin';
+  const sellerAccessInactive = sellerApplication?.status === 'approved' && !hasActiveSellerRole;
+  const canSubmitSellerApplication = !sellerApplication || sellerApplication.status === 'rejected' || sellerAccessInactive;
 
   const fetchDashboardData = async () => {
     try {
@@ -90,6 +98,7 @@ export const UserDashboardPage: React.FC = () => {
 
       const sellerApplicationRes = await api.get('/seller-applications/me');
       setSellerApplication(sellerApplicationRes.data.application || null);
+      setSellerApplicationCurrentRole(sellerApplicationRes.data.currentRole || null);
       if (sellerApplicationRes.data.currentRole === 'seller') {
         refreshUser();
       }
@@ -425,10 +434,11 @@ export const UserDashboardPage: React.FC = () => {
                   </div>
                   {sellerApplication && (
                     <Badge variant={
+                      sellerAccessInactive ? 'warning' :
                       sellerApplication.status === 'approved' ? 'success' :
                       sellerApplication.status === 'pending' ? 'warning' : 'closed'
                     }>
-                      {sellerApplication.status}
+                      {sellerAccessInactive ? 'inactive' : sellerApplication.status}
                     </Badge>
                   )}
                 </div>
@@ -442,12 +452,18 @@ export const UserDashboardPage: React.FC = () => {
                   </div>
                 )}
 
-                {sellerApplication?.status === 'approved' && (
+                {sellerApplication?.status === 'approved' && !sellerAccessInactive && (
                   <div className="mt-4 rounded-xl border border-brand-accent-green/30 bg-brand-accent-green/10 p-3 text-xs text-brand-accent-green font-semibold">
                     Your account has been approved as seller.
                     <a href="/seller" className="block mt-2 text-brand-gold font-black uppercase tracking-wider">
                       Open Seller Center
                     </a>
+                  </div>
+                )}
+
+                {sellerAccessInactive && (
+                  <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-300 font-semibold">
+                    Seller access is currently inactive for this account. Submit a new application if you need seller access again.
                   </div>
                 )}
 
@@ -460,7 +476,7 @@ export const UserDashboardPage: React.FC = () => {
                   </div>
                 )}
 
-                {(!sellerApplication || sellerApplication.status === 'rejected') && (
+                {canSubmitSellerApplication && (
                   <form onSubmit={handleSellerApplicationSubmit} className="mt-4 space-y-3">
                     {(sellerApplicationError || sellerApplicationSuccess) && (
                       <div className={`p-3 rounded-xl border text-xs font-semibold ${
