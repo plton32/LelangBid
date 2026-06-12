@@ -46,3 +46,23 @@ export function syncUserDepositBalance(userId: string) {
 
   return storedBalance;
 }
+
+export function reconcileVerifiedDepositBalances() {
+  const users = db.prepare(`
+    SELECT DISTINCT u.id
+    FROM users u
+    INNER JOIN deposits d ON d.user_id = u.id AND d.status = 'verified'
+    WHERE COALESCE(u.deposit_balance, 0) <= 0
+  `).all() as Array<{ id: string }>;
+
+  let reconciled = 0;
+
+  users.forEach(user => {
+    const balance = syncUserDepositBalance(user.id);
+    if (balance > 0) {
+      reconciled += 1;
+    }
+  });
+
+  return reconciled;
+}

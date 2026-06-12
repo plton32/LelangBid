@@ -556,6 +556,37 @@ const requireRole = (user: User, roles: Role[]) => {
 
 const categoryById = (state: DemoState, id: string) => state.categories.find(c => c.id === id);
 const userById = (state: DemoState, id: string) => state.users.find(u => u.id === id);
+const parseDemoDate = (value?: string | null) => {
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const syncDemoUserDepositBalance = (state: DemoState, userId: string) => {
+  const user = userById(state, userId);
+  if (!user) return 0;
+
+  const storedBalance = Number(user.deposit_balance || 0);
+  if (storedBalance > 0) return storedBalance;
+
+  const latestForfeitTime = state.winners
+    .filter(winner => winner.user_id === userId && winner.status === 'cancelled')
+    .reduce((latest, winner) => Math.max(latest, parseDemoDate(winner.payment_deadline || winner.created_at)), 0);
+
+  const restorableBalance = state.deposits
+    .filter(deposit => deposit.user_id === userId && deposit.status === 'verified')
+    .reduce((sum, deposit) => {
+      const depositTime = parseDemoDate(deposit.verified_at || deposit.created_at);
+      if (latestForfeitTime > 0 && depositTime <= latestForfeitTime) return sum;
+      return sum + Number(deposit.amount || 0);
+    }, 0);
+
+  if (restorableBalance > storedBalance) {
+    user.deposit_balance = restorableBalance;
+    return restorableBalance;
+  }
+
+  return storedBalance;
+};
 const jerseyImages = (state: DemoState, jerseyId: string) =>
   state.jerseyImages.filter(img => img.jersey_id === jerseyId).sort((a, b) => a.sort_order - b.sort_order);
 
@@ -724,6 +755,8 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const user = state.users.find(u => u.email === body.email);
       if (!user || user.password !== body.password) return errorResponse(config, 'Invalid email or password', 400);
       if (user.status !== 'active') return errorResponse(config, 'Your account is suspended', 403);
+      syncDemoUserDepositBalance(state, user.id);
+      saveState(state);
       return response(config, { token: `demo-token-${user.id}`, user: publicUser(user) });
     }
 
@@ -747,6 +780,8 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
 
     if (method === 'get' && path === '/auth/me') {
       const user = requireUser(state, config);
+      syncDemoUserDepositBalance(state, user.id);
+      saveState(state);
       return response(config, publicUser(user));
     }
 
@@ -792,13 +827,15 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
 
     if (method === 'get' && path === '/deposits/me') {
       const user = requireUser(state, config);
+      const depositBalance = syncDemoUserDepositBalance(state, user.id);
+      saveState(state);
       const transactions = state.deposits
         .filter(deposit => deposit.user_id === user.id)
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .slice(0, 10);
 
       return response(config, {
-        depositBalance: Number(user.deposit_balance || 0),
+        depositBalance,
         bankAccount: state.depositBankAccount,
         bidDepositRate: 0,
         bidDepositMinimum: BID_DEPOSIT_REQUIRED,
@@ -847,7 +884,8 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
         return errorResponse(config, 'Deposit bank account has not been configured by admin', 400);
       }
 
-      const requiredShortfall = Math.max(0, BID_DEPOSIT_REQUIRED - Number(user.deposit_balance || 0));
+      const depositBalance = syncDemoUserDepositBalance(state, user.id);
+      const requiredShortfall = Math.max(0, BID_DEPOSIT_REQUIRED - depositBalance);
       if (requiredShortfall === 0) {
         return errorResponse(config, 'Your bidding deposit is already active', 400);
       }
@@ -904,18 +942,20 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       let rows = state.deposits;
       if (status) rows = rows.filter(deposit => deposit.status === status);
 
-      return response(config, rows
+      const depositRows = rows
         .map(deposit => {
           const owner = userById(state, deposit.user_id);
           return {
             ...deposit,
             user_name: owner?.full_name,
             user_email: owner?.email,
-            deposit_balance: owner?.deposit_balance || 0
+            deposit_balance: owner ? syncDemoUserDepositBalance(state, owner.id) : 0
           };
         })
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      );
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+      saveState(state);
+      return response(config, depositRows);
     }
 
     const verifyDepositMatch = path.match(/^\/deposits\/admin\/requests\/([^/]+)\/verify$/);
@@ -1144,7 +1184,7 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
       const minAllowed = getNextMinimumBid(auction.current_price, auction.start_price, bidsCount);
       if (bidAmount < minAllowed) return errorResponse(config, `Bid amount must be at least Rp ${minAllowed.toLocaleString('id-ID')}`, 400);
       const requiredDeposit = BID_DEPOSIT_REQUIRED;
-      const depositBalance = Number(user.deposit_balance || 0);
+      const depositBalance = syncDemoUserDepositBalance(state, user.id);
       if (user.role !== 'admin' && depositBalance < requiredDeposit) {
         const depositShortfall = requiredDeposit - depositBalance;
         return Promise.reject({
@@ -1285,11 +1325,15 @@ export const demoApiAdapter: AxiosAdapter = async (config) => {
     if (method === 'get' && path === '/admin/users') {
       const user = requireUser(state, config);
       requireRole(user, ['admin']);
-      return response(config, state.users.map(userRow => {
+      const userRows = state.users.map(userRow => {
+        syncDemoUserDepositBalance(state, userRow.id);
         const row = { ...userRow } as Partial<User>;
         delete row.password;
         return row;
-      }));
+      });
+
+      saveState(state);
+      return response(config, userRows);
     }
 
     if (method === 'get' && path === '/admin/seller-applications') {

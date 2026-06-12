@@ -9,7 +9,12 @@ dotenv.config();
 // Init Database
 import { initDb } from './config/db';
 import db from './config/db';
+import { reconcileVerifiedDepositBalances } from './utils/depositBalance';
 initDb();
+const reconciledDepositBalances = reconcileVerifiedDepositBalances();
+if (reconciledDepositBalances > 0) {
+  console.log(`Reconciled deposit balances for ${reconciledDepositBalances} user(s).`);
+}
 
 import { ensureUploadDir } from './config/storage';
 import { processAuctionStatusTransitions } from './services/auctionLifecycle.service';
